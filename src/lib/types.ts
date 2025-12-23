@@ -1,0 +1,66 @@
+/*
+ * Type definitions for Cockpit AI Agent
+ */
+
+// Message in chat history
+export interface Message {
+    role: 'user' | 'assistant' | 'system' | 'action';
+    content: string;
+    timestamp: Date;
+    isError?: boolean;
+    action?: Action; // For action messages
+    result?: CommandResult; // For action messages
+}
+
+// Action that AI wants to perform
+export interface Action {
+    type: 'command' | 'file_read' | 'file_write' | 'service';
+    command?: string;
+    path?: string;
+    content?: string;
+    service?: string;
+    operation?: 'start' | 'stop' | 'restart' | 'status';
+    description: string;
+    risk_level: 'low' | 'medium' | 'high' | 'critical';
+}
+
+// Pending action awaiting user approval
+export interface PendingAction extends Action {
+    onApprove: () => void;
+    onDeny: () => void;
+}
+
+// AI response structure
+export interface AIResponse {
+    thought?: string;
+    actions: Action[];
+    response: string;
+}
+
+// Command execution result
+export interface CommandResult {
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+    success: boolean;
+}
+
+// Provider configuration
+export interface ProviderConfig {
+    name: string;
+    defaultBaseUrl: string;
+    models: string[];
+    authHeader: string | null;
+    authPrefix: string;
+    endpoint: string;
+    requestFormat: 'openai' | 'gemini';
+}
+
+// System context for AI
+export interface SystemContext {
+    hostname: string;
+    os?: string;
+    user?: string;
+    cwd?: string;
+    uptime?: string;
+}
