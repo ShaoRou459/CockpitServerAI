@@ -2,6 +2,59 @@
  * Settings management for Cockpit AI Agent
  */
 
+// Safety mode determines which risk levels can be auto-executed
+export type SafetyMode = 'paranoid' | 'cautious' | 'moderate' | 'yolo' | 'full_yolo';
+
+// Risk level type
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+// Safety mode configuration
+export interface SafetyModeConfig {
+    name: string;
+    description: string;
+    icon: string;
+    autoApprove: RiskLevel[];
+    variant: 'success' | 'info' | 'warning' | 'danger';
+}
+
+export const SAFETY_MODES: Record<SafetyMode, SafetyModeConfig> = {
+    paranoid: {
+        name: 'Paranoid',
+        description: 'All commands require approval',
+        icon: 'lock',
+        autoApprove: [],
+        variant: 'success'
+    },
+    cautious: {
+        name: 'Cautious',
+        description: 'Auto-run read-only commands',
+        icon: 'shield',
+        autoApprove: ['low'],
+        variant: 'info'
+    },
+    moderate: {
+        name: 'Moderate',
+        description: 'Auto-run low & medium risk',
+        icon: 'bolt',
+        autoApprove: ['low', 'medium'],
+        variant: 'warning'
+    },
+    yolo: {
+        name: 'YOLO',
+        description: 'Auto-run most, confirm critical',
+        icon: 'rocket',
+        autoApprove: ['low', 'medium', 'high'],
+        variant: 'warning'
+    },
+    full_yolo: {
+        name: 'Full YOLO',
+        description: 'Auto-run everything (dangerous!)',
+        icon: 'skull',
+        autoApprove: ['low', 'medium', 'high', 'critical'],
+        variant: 'danger'
+    }
+};
+
 export interface Settings {
     // Provider settings
     provider: 'openai' | 'gemini' | 'custom';
@@ -10,17 +63,22 @@ export interface Settings {
     baseUrl: string;
 
     // Behavior settings
-    yoloMode: boolean;
-    autoApproveReadOnly: boolean;
+    safetyMode: SafetyMode;
     maxTokens: number;
     temperature: number;
 
     // Safety settings
-    alwaysConfirmCritical: boolean;
     commandBlocklist: string[];
+    secretRedaction: boolean;  // Enable/disable automatic secret detection and redaction
 
     // Audit
     logCommands: boolean;
+
+    // Developer settings
+    debugMode: boolean;
+
+    // UI settings
+    theme: 'light' | 'dark';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,12 +87,10 @@ export const DEFAULT_SETTINGS: Settings = {
     model: 'gpt-4o',
     baseUrl: '',
 
-    yoloMode: false,
-    autoApproveReadOnly: true,
+    safetyMode: 'cautious',
     maxTokens: 4096,
     temperature: 0.7,
 
-    alwaysConfirmCritical: true,
     commandBlocklist: [
         'rm -rf /',
         'rm -rf /*',
@@ -43,8 +99,11 @@ export const DEFAULT_SETTINGS: Settings = {
         'dd if=/dev/zero',
         '> /dev/sda',
     ],
+    secretRedaction: true,  // Enabled by default for security
 
-    logCommands: true
+    logCommands: true,
+    debugMode: false,
+    theme: 'light'
 };
 
 // Provider presets
@@ -78,33 +137,96 @@ export const PROVIDERS = {
     }
 };
 
-const STORAGE_KEY = 'cockpit-ai-agent-settings';
+import cockpit from 'cockpit';
 
-// Load settings from localStorage
+const SETTINGS_PATH = '.config/cockpit-ai-agent/settings.json';
+
+// Load settings from server-side config file
 export async function loadSettings(): Promise<Settings> {
     try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            const parsed = JSON.parse(stored);
+        // First try to load from server-side config (persists across all clients)
+        const homeDir = await getHomeDir();
+        const configPath = `${homeDir}/${SETTINGS_PATH}`;
+
+        const file = cockpit.file(configPath);
+        const content = await file.read();
+        file.close();
+
+        if (content && typeof content === 'string') {
+            const parsed = JSON.parse(content) as Partial<Settings>;
             return { ...DEFAULT_SETTINGS, ...parsed };
         }
     } catch (e) {
-        console.error('Failed to load settings:', e);
+        // Config file doesn't exist yet, that's fine
+        console.log('No server-side settings found, using defaults');
     }
+
+    // Fall back to localStorage for migration (one-time)
+    try {
+        const stored = localStorage.getItem('cockpit-ai-agent-settings');
+        if (stored) {
+            const parsed = JSON.parse(stored) as Partial<Settings>;
+            const settings: Settings = { ...DEFAULT_SETTINGS, ...parsed };
+            // Migrate to server-side storage
+            await saveSettings(settings);
+            // Clear localStorage after migration
+            localStorage.removeItem('cockpit-ai-agent-settings');
+            console.log('Migrated settings from localStorage to server');
+            return settings;
+        }
+    } catch (e) {
+        console.error('Failed to migrate localStorage settings:', e);
+    }
+
     return DEFAULT_SETTINGS;
 }
 
-// Save settings to localStorage
+// Save settings to server-side config file
 export async function saveSettings(settings: Settings): Promise<void> {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        const homeDir = await getHomeDir();
+        const configDir = `${homeDir}/.config/cockpit-ai-agent`;
+        const configPath = `${configDir}/settings.json`;
+
+        // Ensure the config directory exists
+        await cockpit.spawn(['mkdir', '-p', configDir], { err: 'ignore' });
+
+        // Write settings to file as JSON string
+        const file = cockpit.file(configPath);
+        await file.replace(JSON.stringify(settings, null, 2));
+        file.close();
     } catch (e) {
-        console.error('Failed to save settings:', e);
+        console.error('Failed to save settings to server:', e);
         throw e;
     }
 }
 
 // Clear all settings
 export async function clearSettings(): Promise<void> {
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+        const homeDir = await getHomeDir();
+        const configPath = `${homeDir}/${SETTINGS_PATH}`;
+        await cockpit.spawn(['rm', '-f', configPath], { err: 'ignore' });
+    } catch (e) {
+        console.error('Failed to clear settings:', e);
+    }
+    // Also clear localStorage just in case
+    localStorage.removeItem('cockpit-ai-agent-settings');
+}
+
+// Get the current user's home directory
+async function getHomeDir(): Promise<string> {
+    try {
+        const user = await cockpit.user();
+        return user.home;
+    } catch (e) {
+        // Fallback: try spawning echo $HOME
+        try {
+            const result = await cockpit.spawn(['sh', '-c', 'echo $HOME'], { err: 'message' });
+            return (result as string).trim();
+        } catch {
+            // Last resort fallback
+            return '/root';
+        }
+    }
 }

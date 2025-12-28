@@ -4,24 +4,30 @@
  * An AI-powered terminal assistant for server administration
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
-import {
-    Flex,
-    FlexItem,
-    Button,
-} from "@patternfly/react-core";
-import { CogIcon, RocketIcon } from "@patternfly/react-icons";
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { Flex, FlexItem, Button } from "@patternfly/react-core";
+import { CogIcon, RocketIcon, LockIcon, ShieldAltIcon, BoltIcon, SkullIcon, MoonIcon, SunIcon } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 
 import { ChatPanel } from './components/ChatPanel';
-import { TerminalView } from './components/TerminalView';
+import { TerminalView, TerminalViewHandle } from './components/TerminalView';
 import { SettingsModal } from './components/SettingsModal';
+import { SecretsIndicator } from './components/SecretsIndicator';
 import { AgentController } from './lib/agent';
-import { loadSettings, saveSettings, Settings, DEFAULT_SETTINGS } from './lib/settings';
+import { loadSettings, saveSettings, Settings, DEFAULT_SETTINGS, SAFETY_MODES, RiskLevel } from './lib/settings';
 
 import type { Message, PendingAction } from './lib/types';
 
 const _ = cockpit.gettext;
+
+// Map safety mode icons
+const SAFETY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    lock: LockIcon,
+    shield: ShieldAltIcon,
+    bolt: BoltIcon,
+    rocket: RocketIcon,
+    skull: SkullIcon,
+};
 
 export const Application = () => {
     // State
@@ -30,8 +36,12 @@ export const Application = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-    const [terminalOutput, setTerminalOutput] = useState<string>('');
     const [hostname, setHostname] = useState<string>('');
+    const [terminalReady, setTerminalReady] = useState(false);
+    const [detectedSecrets, setDetectedSecrets] = useState<{ id: string; type: string; detectedAt: Date }[]>([]);
+
+    // Terminal ref for sending commands
+    const terminalRef = useRef<TerminalViewHandle>(null);
 
     // Initialize agent controller
     const [agent] = useState(() => new AgentController());
@@ -41,13 +51,20 @@ export const Application = () => {
         loadSettings().then(setSettings);
 
         const hostnameFile = cockpit.file('/etc/hostname');
-        hostnameFile.watch(content => setHostname(content?.trim() ?? 'unknown'));
+        hostnameFile.watch(content => setHostname((content as string)?.trim() ?? 'unknown'));
         return () => hostnameFile.close();
     }, []);
 
-    // Update agent when settings change
+    // Update agent and theme when settings change
     useEffect(() => {
         agent.updateSettings(settings);
+
+        // Apply theme to document element for PatternFly and CSS variables
+        if (settings.theme === 'dark') {
+            document.documentElement.classList.add('pf-v6-theme-dark');
+        } else {
+            document.documentElement.classList.remove('pf-v6-theme-dark');
+        }
     }, [settings, agent]);
 
     // Add welcome message on first load
@@ -73,11 +90,16 @@ export const Application = () => {
         setIsProcessing(true);
 
         try {
+            // Get the auto-approve levels for current safety mode
+            const safetyConfig = SAFETY_MODES[settings.safetyMode];
+            const autoApproveLevels = safetyConfig.autoApprove;
+
             const response = await agent.processMessage(content, {
                 hostname,
                 onAction: (action) => {
-                    // If YOLO mode and low risk, auto-execute
-                    if (settings.yoloMode && action.risk_level === 'low') {
+                    // Check if this risk level should be auto-approved based on safety mode
+                    const riskLevel = action.risk_level as RiskLevel;
+                    if (autoApproveLevels.includes(riskLevel)) {
                         return Promise.resolve(true);
                     }
                     // Otherwise, prompt for approval
@@ -95,8 +117,8 @@ export const Application = () => {
                         });
                     });
                 },
-                onOutput: (output) => {
-                    setTerminalOutput(prev => prev + output);
+                onOutput: () => {
+                    // Output goes directly to the terminal via executeCommand
                 },
                 onActionExecuted: (action, result) => {
                     // Add action to chat
@@ -108,6 +130,13 @@ export const Application = () => {
                         result
                     };
                     setMessages(prev => [...prev, actionMessage]);
+                },
+                executeCommand: async (command: string) => {
+                    // Execute command via the terminal's persistent shell
+                    if (terminalRef.current) {
+                        return terminalRef.current.executeCommand(command);
+                    }
+                    return { output: 'Terminal not ready', exitCode: -1, cwd: '' };
                 }
             });
 
@@ -118,6 +147,9 @@ export const Application = () => {
                 timestamp: new Date()
             };
             setMessages(prev => [...prev, assistantMessage]);
+
+            // Update detected secrets list
+            setDetectedSecrets(agent.getDetectedSecrets());
         } catch (error) {
             const errorMessage: Message = {
                 role: 'assistant',
@@ -129,7 +161,7 @@ export const Application = () => {
         } finally {
             setIsProcessing(false);
         }
-    }, [agent, hostname, settings.yoloMode]);
+    }, [agent, hostname, settings.safetyMode, terminalReady]);
 
     // Handle settings save
     const handleSaveSettings = useCallback(async (newSettings: Settings) => {
@@ -146,6 +178,25 @@ export const Application = () => {
     const handleDeny = useCallback(() => {
         pendingAction?.onDeny();
     }, [pendingAction]);
+
+    // Clear terminal
+    const handleClearTerminal = useCallback(() => {
+        if (terminalRef.current) {
+            terminalRef.current.clear();
+        }
+    }, []);
+
+    const toggleTheme = () => {
+        const newTheme = settings.theme === 'light' ? 'dark' : 'light';
+        const newSettings: Settings = { ...settings, theme: newTheme };
+        setSettings(newSettings);
+        saveSettings(newSettings);
+    };
+
+    const handleClearSecrets = useCallback(() => {
+        agent.clearSecrets();
+        setDetectedSecrets([]);
+    }, [agent]);
 
     // Check if API is configured
     const isConfigured = Boolean(settings.apiKey && settings.provider);
@@ -166,22 +217,50 @@ export const Application = () => {
                             <FlexItem>
                                 <span className="header-hostname">@ {hostname || 'loading...'}</span>
                             </FlexItem>
-                            {settings.yoloMode && (
-                                <FlexItem>
-                                    <span className="yolo-badge">⚡ YOLO</span>
-                                </FlexItem>
-                            )}
+                            {settings.safetyMode !== 'paranoid' && (() => {
+                                const config = SAFETY_MODES[settings.safetyMode];
+                                const IconComponent = SAFETY_ICONS[config.icon];
+                                return (
+                                    <FlexItem>
+                                        <span className={`safety-badge safety-badge--${config.variant}`}>
+                                            <IconComponent className="safety-badge-icon" />
+                                            {config.name}
+                                        </span>
+                                    </FlexItem>
+                                );
+                            })()}
                         </Flex>
                     </FlexItem>
                     <FlexItem>
-                        <Button
-                            variant="plain"
-                            aria-label="Settings"
-                            onClick={() => setSettingsOpen(true)}
-                            className="header-settings-btn"
-                        >
-                            <CogIcon />
-                        </Button>
+                        <Flex spaceItems={{ default: 'spaceItemsSm' }}>
+                            <FlexItem>
+                                <SecretsIndicator
+                                    secrets={detectedSecrets}
+                                    onClear={handleClearSecrets}
+                                    isEnabled={settings.secretRedaction}
+                                />
+                            </FlexItem>
+                            <FlexItem>
+                                <Button
+                                    variant="plain"
+                                    aria-label={settings.theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+                                    onClick={toggleTheme}
+                                    className="header-settings-btn"
+                                >
+                                    {settings.theme === 'light' ? <MoonIcon /> : <SunIcon />}
+                                </Button>
+                            </FlexItem>
+                            <FlexItem>
+                                <Button
+                                    variant="plain"
+                                    aria-label="Settings"
+                                    onClick={() => setSettingsOpen(true)}
+                                    className="header-settings-btn"
+                                >
+                                    <CogIcon />
+                                </Button>
+                            </FlexItem>
+                        </Flex>
                     </FlexItem>
                 </Flex>
             </div>
@@ -205,8 +284,8 @@ export const Application = () => {
                 {/* Terminal View - Right Side */}
                 <div className="ai-agent-terminal">
                     <TerminalView
-                        output={terminalOutput}
-                        onClear={() => setTerminalOutput('')}
+                        ref={terminalRef}
+                        onReady={() => setTerminalReady(true)}
                     />
                 </div>
             </div>

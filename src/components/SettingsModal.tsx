@@ -24,13 +24,25 @@ import {
     NumberInput,
     Alert,
     Divider,
+    Card,
+    CardBody,
+    Label,
 } from "@patternfly/react-core";
-import { EyeIcon, EyeSlashIcon } from "@patternfly/react-icons";
+import { EyeIcon, EyeSlashIcon, LockIcon, ShieldAltIcon, BoltIcon, RocketIcon, SkullIcon } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 
-import { Settings, PROVIDERS } from '../lib/settings';
+import { Settings, PROVIDERS, SAFETY_MODES, SafetyMode } from '../lib/settings';
 
 const _ = cockpit.gettext;
+
+// Map icon names to components
+const SAFETY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    lock: LockIcon,
+    shield: ShieldAltIcon,
+    bolt: BoltIcon,
+    rocket: RocketIcon,
+    skull: SkullIcon,
+};
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -216,37 +228,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {/* Behavior Tab */}
                     <Tab eventKey={1} title={<TabTitleText>{_("Behavior")}</TabTitleText>}>
                         <Form style={{ marginTop: '16px' }}>
-                            <FormGroup fieldId="yolo-mode">
-                                <Switch
-                                    id="yolo-mode"
-                                    label={formData.yoloMode ? _("YOLO Mode (enabled)") : _("YOLO Mode (disabled)")}
-                                    isChecked={formData.yoloMode}
-                                    onChange={(_e, checked) => updateField('yoloMode', checked)}
-                                />
-                                <HelperText>
-                                    <HelperTextItem variant={formData.yoloMode ? 'warning' : 'default'}>
-                                        {formData.yoloMode
-                                            ? _("⚡ Low-risk commands will run automatically without approval")
-                                            : _("All commands require your approval before execution")}
+                            <FormGroup label={_("Safety Mode")} fieldId="safety-mode">
+                                <HelperText style={{ marginBottom: '12px' }}>
+                                    <HelperTextItem>
+                                        {_("Choose how much automation you want. Higher levels = faster but more risk.")}
                                     </HelperTextItem>
                                 </HelperText>
+                                <div className="safety-mode-selector">
+                                    {(Object.entries(SAFETY_MODES) as [SafetyMode, typeof SAFETY_MODES[SafetyMode]][]).map(([key, config]) => {
+                                        const IconComponent = SAFETY_ICONS[config.icon];
+                                        const isSelected = formData.safetyMode === key;
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => updateField('safetyMode', key)}
+                                                className={`safety-option ${isSelected ? 'safety-option--selected' : ''} ${key === 'full_yolo' ? 'safety-option--danger' : ''}`}
+                                                title={config.description}
+                                            >
+                                                <IconComponent className="safety-option-icon" />
+                                                <span className="safety-option-name">{config.name}</span>
+                                                <span className="safety-option-desc">{config.description}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <HelperText style={{ marginTop: '8px' }}>
+                                    <HelperTextItem>
+                                        {SAFETY_MODES[formData.safetyMode].description}
+                                    </HelperTextItem>
+                                </HelperText>
+                                {formData.safetyMode === 'full_yolo' && (
+                                    <Alert
+                                        variant="danger"
+                                        isInline
+                                        title={_("Extreme danger!")}
+                                        style={{ marginTop: '12px' }}
+                                    >
+                                        {_("Full YOLO mode will auto-execute ALL commands including destructive ones like 'rm -rf'. Only use this if you fully trust the AI and understand the risks.")}
+                                    </Alert>
+                                )}
                             </FormGroup>
 
                             <Divider />
-
-                            <FormGroup fieldId="confirm-critical">
-                                <Switch
-                                    id="confirm-critical"
-                                    label={_("Always confirm critical commands")}
-                                    isChecked={formData.alwaysConfirmCritical}
-                                    onChange={(_e, checked) => updateField('alwaysConfirmCritical', checked)}
-                                />
-                                <HelperText>
-                                    <HelperTextItem>
-                                        {_("Even in YOLO mode, always ask before destructive operations")}
-                                    </HelperTextItem>
-                                </HelperText>
-                            </FormGroup>
 
                             <FormGroup label={_("Temperature")} fieldId="temperature">
                                 <NumberInput
@@ -311,12 +335,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         {_("Commands containing these patterns will be blocked:")}
                                     </HelperTextItem>
                                 </HelperText>
-                                <div style={{ fontFamily: 'monospace', fontSize: '12px', background: '#f0f0f0', padding: '12px', borderRadius: '4px', marginTop: '8px' }}>
+                                <div className="blocklist-patterns">
                                     {formData.commandBlocklist.map((pattern, i) => (
                                         <div key={i}>• {pattern}</div>
                                     ))}
                                 </div>
                             </FormGroup>
+
+                            <Divider style={{ marginTop: '16px', marginBottom: '16px' }} />
+
+                            <FormGroup fieldId="secret-redaction">
+                                <Switch
+                                    id="secret-redaction"
+                                    label={_("Secret Redaction")}
+                                    isChecked={formData.secretRedaction}
+                                    onChange={(_e, checked) => updateField('secretRedaction', checked)}
+                                />
+                                <HelperText>
+                                    <HelperTextItem>
+                                        {_("Automatically detect and hide sensitive data (passwords, API keys, tokens) from the AI. The AI will see placeholders like __SECRET_1__ but can still use them in commands.")}
+                                    </HelperTextItem>
+                                </HelperText>
+                                {!formData.secretRedaction && (
+                                    <Alert
+                                        variant="warning"
+                                        isInline
+                                        title={_("Security risk")}
+                                        style={{ marginTop: '8px' }}
+                                    >
+                                        {_("Disabling secret redaction means sensitive data like passwords and API keys will be visible to the AI model. Only disable this if you trust the model provider with this data.")}
+                                    </Alert>
+                                )}
+                            </FormGroup>
+
+                            <Divider style={{ marginTop: '16px', marginBottom: '16px' }} />
 
                             <FormGroup fieldId="log-commands">
                                 <Switch
@@ -328,6 +380,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <HelperText>
                                     <HelperTextItem>
                                         {_("Keep a record of all commands executed by the AI agent")}
+                                    </HelperTextItem>
+                                </HelperText>
+                            </FormGroup>
+
+                            <Divider />
+
+                            <FormGroup fieldId="debug-mode">
+                                <Switch
+                                    id="debug-mode"
+                                    label={_("Debug Mode")}
+                                    isChecked={formData.debugMode}
+                                    onChange={(_e, checked) => updateField('debugMode', checked)}
+                                />
+                                <HelperText>
+                                    <HelperTextItem>
+                                        {_("Show verbose logging in the browser console for troubleshooting")}
                                     </HelperTextItem>
                                 </HelperText>
                             </FormGroup>
@@ -348,6 +416,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {_("Cancel")}
                 </Button>
             </ModalFooter>
-        </Modal>
+        </Modal >
     );
 };

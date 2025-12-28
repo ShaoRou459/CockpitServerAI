@@ -17,6 +17,7 @@ import {
     EmptyStateActions,
     EmptyStateFooter,
     Label,
+    ExpandableSection,
 } from "@patternfly/react-core";
 import {
     PaperPlaneIcon,
@@ -27,12 +28,16 @@ import {
     CheckCircleIcon,
     TimesCircleIcon,
     ExclamationTriangleIcon,
-    ShieldAltIcon
+    ShieldAltIcon,
+    FileIcon,
+    FileCodeIcon,
+    AngleRightIcon,
+    AngleDownIcon,
 } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 import { marked } from 'marked';
 
-import type { Message, PendingAction } from '../lib/types';
+import type { Message, PendingAction, Action } from '../lib/types';
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -180,6 +185,40 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     );
 };
 
+// Collapsible file content component
+const FileContentCollapsible: React.FC<{
+    label: string;
+    content: string;
+    isExpanded?: boolean;
+}> = ({ label, content, isExpanded = false }) => {
+    const [expanded, setExpanded] = useState(isExpanded);
+    const lineCount = content.split('\n').length;
+    const charCount = content.length;
+
+    return (
+        <div className="file-content-collapsible">
+            <button
+                className="file-content-toggle"
+                onClick={() => setExpanded(!expanded)}
+                type="button"
+            >
+                <span className="file-content-toggle-icon">
+                    {expanded ? <AngleDownIcon /> : <AngleRightIcon />}
+                </span>
+                <span className="file-content-toggle-label">{label}</span>
+                <span className="file-content-toggle-meta">
+                    {lineCount} {lineCount === 1 ? 'line' : 'lines'} • {charCount} chars
+                </span>
+            </button>
+            {expanded && (
+                <div className="file-content-body">
+                    <pre>{content}</pre>
+                </div>
+            )}
+        </div>
+    );
+};
+
 // Inline approval component
 const InlineApproval: React.FC<{
     action: PendingAction;
@@ -195,22 +234,20 @@ const InlineApproval: React.FC<{
 
     const risk = riskColors[action.risk_level] || riskColors.medium;
 
-    const getActionDisplay = () => {
+    const getActionTypeLabel = () => {
         switch (action.type) {
             case 'command':
-                return { label: 'Command', content: action.command };
+                return 'Command';
             case 'file_read':
-                return { label: 'Read File', content: action.path };
+                return 'Read File';
             case 'file_write':
-                return { label: 'Write File', content: action.path };
+                return 'Write File';
             case 'service':
-                return { label: 'Service', content: `${action.operation} ${action.service}` };
+                return 'Service';
             default:
-                return { label: 'Action', content: action.description };
+                return 'Action';
         }
     };
-
-    const display = getActionDisplay();
 
     return (
         <div className={`approval-card risk-${action.risk_level}`}>
@@ -223,7 +260,7 @@ const InlineApproval: React.FC<{
                                 <ShieldAltIcon className="approval-icon" />
                             </FlexItem>
                             <FlexItem>
-                                <strong>{_("Command Approval Required")}</strong>
+                                <strong>{_("Action Approval Required")}</strong>
                             </FlexItem>
                         </Flex>
                     </FlexItem>
@@ -240,11 +277,43 @@ const InlineApproval: React.FC<{
                 {action.description}
             </div>
 
-            {/* Command/Action Details */}
-            <div className="approval-command">
-                <div className="approval-command-label">{display.label}:</div>
-                <code>{display.content}</code>
+            {/* Action Type Badge */}
+            <div className="approval-action-type">
+                <span className="action-type-badge">{getActionTypeLabel()}</span>
             </div>
+
+            {/* Command display for 'command' type */}
+            {action.type === 'command' && (
+                <div className="approval-command">
+                    <div className="approval-command-label">Command:</div>
+                    <code>{action.command}</code>
+                </div>
+            )}
+
+            {/* File path and content for file operations */}
+            {(action.type === 'file_read' || action.type === 'file_write') && (
+                <div className="approval-file-details">
+                    <div className="approval-file-path">
+                        <FileIcon className="file-path-icon" />
+                        <span className="file-path-label">Path:</span>
+                        <code className="file-path-value">{action.path}</code>
+                    </div>
+                    {action.type === 'file_write' && action.content && (
+                        <FileContentCollapsible
+                            label="Content to Write"
+                            content={action.content}
+                        />
+                    )}
+                </div>
+            )}
+
+            {/* Service display */}
+            {action.type === 'service' && (
+                <div className="approval-command">
+                    <div className="approval-command-label">Service Operation:</div>
+                    <code>{action.operation} {action.service}</code>
+                </div>
+            )}
 
             {/* Action Buttons */}
             <div className="approval-actions">
@@ -273,6 +342,19 @@ const InlineApproval: React.FC<{
     );
 };
 
+// Get the appropriate icon for action type
+const getActionIcon = (type: Action['type']) => {
+    switch (type) {
+        case 'file_read':
+        case 'file_write':
+            return <FileCodeIcon />;
+        case 'command':
+        case 'service':
+        default:
+            return <TerminalIcon />;
+    }
+};
+
 // Message bubble component
 const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
     const isUser = message.role === 'user';
@@ -282,30 +364,70 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
     // Special rendering for action messages
     if (isAction && message.action) {
         const success = message.result?.success;
+        const action = message.action;
+        const isFileOperation = action.type === 'file_read' || action.type === 'file_write';
+
         return (
             <div className={`message-bubble action ${success ? 'success' : 'failure'}`}>
                 <Flex spaceItems={{ default: 'spaceItemsSm' }} alignItems={{ default: 'alignItemsFlexStart' }}>
                     <FlexItem>
                         <div className={`message-icon action-icon ${success ? 'success' : 'failure'}`}>
-                            <TerminalIcon />
+                            {getActionIcon(action.type)}
                         </div>
                     </FlexItem>
                     <FlexItem grow={{ default: 'grow' }}>
                         <div className="action-header">
-                            <span className="action-type">{message.action.type.toUpperCase()}</span>
+                            <span className="action-type">{action.type.toUpperCase()}</span>
                             <span className={`action-status ${success ? 'success' : 'failure'}`}>
                                 {success ? <CheckCircleIcon /> : <TimesCircleIcon />}
                                 {success ? 'Success' : 'Failed'}
                             </span>
                         </div>
                         <div className="action-description">
-                            {message.action.description}
+                            {action.description}
                         </div>
-                        {message.action.command && (
+
+                        {/* Command display for command type */}
+                        {action.type === 'command' && action.command && (
                             <div className="action-command">
-                                <code>$ {message.action.command}</code>
+                                <code>$ {action.command}</code>
                             </div>
                         )}
+
+                        {/* File operation details */}
+                        {isFileOperation && (
+                            <div className="action-file-details">
+                                <div className="action-file-path">
+                                    <FileIcon className="file-path-icon" />
+                                    <span className="file-path-label">Path:</span>
+                                    <code className="file-path-value">{action.path}</code>
+                                </div>
+
+                                {/* For file_write: show content that was written */}
+                                {action.type === 'file_write' && action.content && (
+                                    <FileContentCollapsible
+                                        label="Content Written"
+                                        content={action.content}
+                                    />
+                                )}
+
+                                {/* For file_read: show content that was read (from result) */}
+                                {action.type === 'file_read' && message.result?.stdout && (
+                                    <FileContentCollapsible
+                                        label="Content Read"
+                                        content={message.result.stdout}
+                                    />
+                                )}
+                            </div>
+                        )}
+
+                        {/* Service operation display */}
+                        {action.type === 'service' && (
+                            <div className="action-command">
+                                <code>systemctl {action.operation} {action.service}</code>
+                            </div>
+                        )}
+
                         <div className="message-time">
                             {message.timestamp.toLocaleTimeString()}
                         </div>

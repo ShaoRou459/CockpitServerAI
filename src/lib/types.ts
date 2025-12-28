@@ -2,6 +2,8 @@
  * Type definitions for Cockpit AI Agent
  */
 
+import type { RiskLevel } from './settings';
+
 // Message in chat history
 export interface Message {
     role: 'user' | 'assistant' | 'system' | 'action';
@@ -21,7 +23,7 @@ export interface Action {
     service?: string;
     operation?: 'start' | 'stop' | 'restart' | 'status';
     description: string;
-    risk_level: 'low' | 'medium' | 'high' | 'critical';
+    risk_level: RiskLevel;
 }
 
 // Pending action awaiting user approval

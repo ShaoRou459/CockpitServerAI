@@ -1,11 +1,8 @@
 /*
- * TerminalView - Simple styled terminal output display
- * 
- * Since xterm.js relies on inline styles that CSP blocks,
- * we use a simple pre-formatted text display with custom styling.
+ * TerminalView - Wrapper around XTerminal with header controls
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useImperativeHandle, forwardRef } from 'react';
 import {
     Card,
     CardHeader,
@@ -18,74 +15,42 @@ import {
 import { TrashIcon } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 
+import { XTerminal, XTerminalHandle } from './XTerminal';
+
 const _ = cockpit.gettext;
 
-interface TerminalViewProps {
-    output: string;
-    onClear: () => void;
+// Handle exposed to parent
+export interface TerminalViewHandle {
+    executeCommand: (command: string) => Promise<{ output: string; exitCode: number; cwd: string }>;
+    clear: () => void;
 }
 
-export const TerminalView: React.FC<TerminalViewProps> = ({
-    output,
-    onClear
-}) => {
-    const terminalRef = useRef<HTMLPreElement>(null);
+interface TerminalViewProps {
+    onReady?: (() => void) | undefined;
+}
 
-    // Auto-scroll to bottom when output changes
-    useEffect(() => {
+export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(({ onReady }, ref) => {
+    const terminalRef = useRef<XTerminalHandle>(null);
+
+    // Expose methods to parent
+    useImperativeHandle(ref, () => ({
+        executeCommand: async (command: string) => {
+            if (terminalRef.current) {
+                return terminalRef.current.executeCommand(command);
+            }
+            return { output: 'Terminal not ready', exitCode: -1, cwd: '' };
+        },
+        clear: () => {
+            if (terminalRef.current) {
+                terminalRef.current.clear();
+            }
+        }
+    }));
+
+    const handleClear = () => {
         if (terminalRef.current) {
-            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+            terminalRef.current.clear();
         }
-    }, [output]);
-
-    // Parse and colorize output
-    const renderOutput = () => {
-        if (!output) {
-            return (
-                <div className="terminal-welcome">
-                    <div className="terminal-logo">🤖</div>
-                    <div className="terminal-title">AI Agent Terminal</div>
-                    <div className="terminal-subtitle">Command output will appear here</div>
-                </div>
-            );
-        }
-
-        // Simple colorization based on content
-        const lines = output.split('\n');
-        return lines.map((line, i) => {
-            let className = 'terminal-line';
-
-            // Color commands (lines starting with $)
-            if (line.startsWith('$ ')) {
-                className += ' terminal-command';
-            }
-            // Color success indicators
-            else if (line.includes('✓') || line.includes('SUCCESS') || line.includes('success')) {
-                className += ' terminal-success';
-            }
-            // Color error indicators
-            else if (line.includes('✗') || line.includes('ERROR') || line.includes('error') || line.includes('Error')) {
-                className += ' terminal-error';
-            }
-            // Color warnings
-            else if (line.includes('⚠') || line.includes('WARNING') || line.includes('warning')) {
-                className += ' terminal-warning';
-            }
-            // Color info/status lines
-            else if (line.startsWith('📄') || line.startsWith('📝') || line.startsWith('🔧')) {
-                className += ' terminal-info';
-            }
-            // Blocked/denied
-            else if (line.includes('⛔') || line.includes('❌') || line.includes('Denied') || line.includes('Blocked')) {
-                className += ' terminal-blocked';
-            }
-
-            return (
-                <div key={i} className={className}>
-                    {line || '\u00A0'}
-                </div>
-            );
-        });
     };
 
     return (
@@ -95,14 +60,14 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     <FlexItem>
                         <CardTitle>
                             <span className="terminal-header-icon">⬛</span>
-                            {_("Terminal Output")}
+                            {_("Terminal")}
                         </CardTitle>
                     </FlexItem>
                     <FlexItem>
                         <Button
                             variant="plain"
                             aria-label="Clear terminal"
-                            onClick={onClear}
+                            onClick={handleClear}
                             className="terminal-clear-btn"
                         >
                             <TrashIcon />
@@ -111,10 +76,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                 </Flex>
             </CardHeader>
             <CardBody className="terminal-body">
-                <pre ref={terminalRef} className="terminal-output">
-                    {renderOutput()}
-                </pre>
+                <XTerminal ref={terminalRef} onReady={onReady} />
             </CardBody>
         </Card>
     );
-};
+});
+
+TerminalView.displayName = 'TerminalView';

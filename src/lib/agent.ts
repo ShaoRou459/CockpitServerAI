@@ -3,23 +3,28 @@
  * 
  * Supports multi-step execution where the AI can run multiple commands
  * and iterate until it completes the task.
+ * 
+ * Uses a persistent shell session to maintain state between commands.
  */
 
 import cockpit from 'cockpit';
 import { AIClient, ChatMessage } from './ai-client';
 import { Settings, DEFAULT_SETTINGS } from './settings';
+import { secretManager } from './secrets';
 import type { Action, AIResponse, SystemContext, CommandResult } from './types';
 
 // Callback types
 type ActionCallback = (action: Action) => Promise<boolean>;
 type OutputCallback = (output: string) => void;
 type ActionLogCallback = (action: Action, result: CommandResult) => void;
+type CommandExecutor = (command: string) => Promise<{ output: string; exitCode: number; cwd: string }>;
 
 interface ProcessOptions {
     hostname: string;
     onAction: ActionCallback;
     onOutput: OutputCallback;
-    onActionExecuted?: ActionLogCallback; // New: callback when action is executed
+    onActionExecuted?: ActionLogCallback;
+    executeCommand: CommandExecutor;  // Execute command via terminal
 }
 
 // Maximum iterations to prevent infinite loops
@@ -29,7 +34,7 @@ export class AgentController {
     private aiClient: AIClient;
     private settings: Settings;
     private conversationHistory: ChatMessage[] = [];
-    private currentDirectory: string = '/root';
+    private currentDirectory: string = '~';
 
     constructor() {
         this.settings = DEFAULT_SETTINGS;
@@ -39,10 +44,12 @@ export class AgentController {
     updateSettings(settings: Settings) {
         this.settings = settings;
         this.aiClient.updateSettings(settings);
+        // Sync secret redaction setting
+        secretManager.setEnabled(settings.secretRedaction);
     }
 
     async processMessage(userMessage: string, options: ProcessOptions): Promise<string> {
-        const { hostname, onAction, onOutput, onActionExecuted } = options;
+        const { hostname, onAction, onOutput, onActionExecuted, executeCommand } = options;
 
         // Add user message to history
         this.conversationHistory.push({
@@ -85,7 +92,8 @@ export class AgentController {
                     aiResponse.actions,
                     onAction,
                     onOutput,
-                    onActionExecuted
+                    onActionExecuted,
+                    executeCommand
                 );
 
                 // Add AI's response to history
@@ -131,7 +139,8 @@ export class AgentController {
         actions: Action[],
         onAction: ActionCallback,
         onOutput: OutputCallback,
-        onActionExecuted?: ActionLogCallback
+        onActionExecuted: ActionLogCallback | undefined,
+        executeCommand: CommandExecutor
     ): Promise<{ action: Action; result: CommandResult }[]> {
         const results: { action: Action; result: CommandResult }[] = [];
 
@@ -151,7 +160,7 @@ export class AgentController {
             }
 
             // Execute the action
-            const result = await this.executeAction(action, onOutput);
+            const result = await this.executeAction(action, onOutput, executeCommand);
             results.push({ action, result });
 
             // Notify about executed action
@@ -163,10 +172,10 @@ export class AgentController {
         return results;
     }
 
-    private async executeAction(action: Action, onOutput: OutputCallback): Promise<CommandResult> {
+    private async executeAction(action: Action, onOutput: OutputCallback, executeCommand: CommandExecutor): Promise<CommandResult> {
         switch (action.type) {
             case 'command':
-                return this.executeCommand(action.command!, onOutput);
+                return this.runCommand(action.command!, executeCommand);
             case 'file_read':
                 return this.readFile(action.path!, onOutput);
             case 'file_write':
@@ -183,57 +192,96 @@ export class AgentController {
         }
     }
 
-    private executeCommand(command: string, onOutput: OutputCallback): Promise<CommandResult> {
-        return new Promise((resolve) => {
-            onOutput(`\n$ ${command}\n`);
+    /**
+     * Execute a command via the terminal's persistent shell
+     * Handles secret substitution and output redaction
+     */
+    private async runCommand(command: string, executeCommand: CommandExecutor): Promise<CommandResult> {
+        try {
+            // Substitute any secret placeholders with actual values before execution
+            const actualCommand = secretManager.substituteSecrets(command);
 
-            const proc = cockpit.spawn(['bash', '-c', command], {
-                pty: true,
-                environ: ['TERM=xterm-256color'],
-                directory: this.currentDirectory,
-                superuser: 'try'
-            });
+            if (this.settings.debugMode && actualCommand !== command) {
+                console.log('Secrets substituted in command');
+            }
 
-            let stdout = '';
-            let stderr = '';
+            const result = await executeCommand(actualCommand);
 
-            proc.stream((data: string) => {
-                stdout += data;
-                onOutput(data);
-            });
+            // Update current directory from the shell's actual CWD
+            if (result.cwd) {
+                this.currentDirectory = result.cwd;
+            }
 
-            proc.then(() => {
-                resolve({
-                    exitCode: 0,
-                    stdout,
-                    stderr,
-                    success: true
-                });
-            }).catch((error: any) => {
-                stderr = error.message || 'Command failed';
-                resolve({
-                    exitCode: error.exit_status || 1,
-                    stdout,
-                    stderr,
-                    success: false
-                });
-            });
-        });
+            // Redact any secrets found in the output before sending to AI
+            const { redactedText, detectedSecrets } = secretManager.scanAndRedact(
+                result.output,
+                `command: ${command}`
+            );
+
+            if (this.settings.debugMode) {
+                console.log('Command executed:', command);
+                console.log('Output received:', result.output?.substring(0, 200) + (result.output?.length > 200 ? '...' : ''));
+                console.log('Exit code:', result.exitCode);
+                console.log('Current directory:', this.currentDirectory);
+                if (detectedSecrets.length > 0) {
+                    console.log('Secrets detected and redacted:', detectedSecrets);
+                }
+            }
+
+            return {
+                exitCode: result.exitCode,
+                stdout: redactedText,  // Return redacted output to AI
+                stderr: '',
+                success: result.exitCode === 0
+            };
+        } catch (error) {
+            console.error('Command execution error:', error);
+            return {
+                exitCode: 1,
+                stdout: '',
+                stderr: error instanceof Error ? error.message : 'Command failed',
+                success: false
+            };
+        }
+    }
+
+    /**
+     * Reset the shell state (for clear history)
+     */
+    resetShell(): void {
+        this.currentDirectory = '~';
     }
 
     private async readFile(path: string, onOutput: OutputCallback): Promise<CommandResult> {
+        // Substitute any secret placeholders in the path
+        const actualPath = secretManager.substituteSecrets(path);
+
+        if (this.settings.debugMode && actualPath !== path) {
+            console.log('Secrets substituted in file_read path');
+        }
+
         onOutput(`\n📄 Reading: ${path}\n`);
 
         try {
-            const file = cockpit.file(path);
-            const content = await file.read();
+            const file = cockpit.file(actualPath);
+            const content = await file.read() as string | null;
             file.close();
+
+            // Redact secrets from file content before sending to AI
+            const { redactedText, detectedSecrets } = secretManager.scanAndRedact(
+                content || '',
+                `file: ${path}`
+            );
 
             onOutput(content || '(empty file)\n');
 
+            if (this.settings.debugMode && detectedSecrets.length > 0) {
+                console.log(`Secrets redacted from ${path}:`, detectedSecrets);
+            }
+
             return {
                 exitCode: 0,
-                stdout: content || '',
+                stdout: redactedText,  // Return redacted content to AI
                 stderr: '',
                 success: true
             };
@@ -250,18 +298,26 @@ export class AgentController {
     }
 
     private async writeFile(path: string, content: string, onOutput: OutputCallback): Promise<CommandResult> {
+        // Substitute any secret placeholders with actual values before writing
+        const actualPath = secretManager.substituteSecrets(path);
+        const actualContent = secretManager.substituteSecrets(content);
+
+        if (this.settings.debugMode && (actualPath !== path || actualContent !== content)) {
+            console.log('Secrets substituted in file_write operation');
+        }
+
         onOutput(`\n📝 Writing to: ${path}\n`);
 
         try {
-            const file = cockpit.file(path, { superuser: 'try' });
-            await file.replace(content);
+            const file = cockpit.file(actualPath, { superuser: 'try' });
+            await file.replace(actualContent);
             file.close();
 
-            onOutput(`✓ Written ${content.length} bytes\n`);
+            onOutput(`✓ Written ${actualContent.length} bytes\n`);
 
             return {
                 exitCode: 0,
-                stdout: `Written ${content.length} bytes to ${path}`,
+                stdout: `Written ${actualContent.length} bytes to ${path}`,
                 stderr: '',
                 success: true
             };
@@ -381,6 +437,7 @@ You MUST respond with valid JSON in this exact format:
 - After executing commands, you will receive the results
 - You can then decide to run more commands or conclude the task
 - When the task is complete, respond with an empty actions array
+- Commands run in a PERSISTENT shell session - environment variables, working directory changes (cd), and shell state are preserved between commands
 
 ## Guidelines
 1. Keep responses concise but helpful
@@ -392,13 +449,59 @@ You MUST respond with valid JSON in this exact format:
 7. If you don't need to run any commands, use an empty actions array
 8. You can run multiple commands in sequence for complex tasks
 
+## Secret Handling
+- Sensitive data (passwords, API keys, tokens, private keys) is automatically detected and redacted
+- Secrets appear as placeholders like \`__SECRET_1__\`, \`__SECRET_2__\`, etc.
+- You can reference these placeholders in commands and they will be substituted with actual values at execution time
+- Example: If you see \`password=__SECRET_1__\` in output, you can use \`mysql -p__SECRET_1__\` in a command
+- You will NEVER see the actual secret values - this is for security
+- Treat the placeholder as if it were the real secret in your reasoning
+
 ## IMPORTANT
 - Always respond with valid JSON, nothing else
 - Never include markdown formatting around the JSON
-- Be conservative with risk levels - when in doubt, use a higher level`;
+- Be conservative with risk levels - when in doubt, use a higher level
+- Never try to decode, guess, or ask about the actual values of secret placeholders`;
     }
 
-    clearHistory() {
+    /**
+     * Clear conversation history and optionally reset the shell session
+     */
+    clearHistory(resetSession: boolean = true, clearSecrets: boolean = false) {
         this.conversationHistory = [];
+        if (resetSession) {
+            this.resetShell();
+        }
+        if (clearSecrets) {
+            secretManager.clear();
+        }
+    }
+
+    /**
+     * Get list of detected secrets (IDs and types only, never values)
+     */
+    getDetectedSecrets(): { id: string; type: string; detectedAt: Date }[] {
+        return secretManager.listSecrets();
+    }
+
+    /**
+     * Get count of stored secrets
+     */
+    getSecretCount(): number {
+        return secretManager.getSecretCount();
+    }
+
+    /**
+     * Clear all stored secrets
+     */
+    clearSecrets(): void {
+        secretManager.clear();
+    }
+
+    /**
+     * Manually add a secret (user-provided)
+     */
+    addSecret(value: string, type: string = 'user_defined'): string {
+        return secretManager.addSecret(value, type);
     }
 }

@@ -5,6 +5,48 @@
  */
 
 /* ========================================
+   THEME VARIABLES
+   ======================================== */
+:root {
+    --ai-bg-color: #f5f5f5;
+    --ai-panel-bg: #ffffff;
+    --ai-header-bg: #ffffff;
+    --ai-border-color: #d2d2d2;
+    --ai-text-color: #151515;
+    --ai-text-muted: #6a6e73;
+    --ai-primary-color: #0066cc;
+    --ai-danger-color: #c9190b;
+    --ai-hover-bg: #e8e8e8;
+    --ai-terminal-bg: #151515;
+    --ai-terminal-header-bg: #1f1f1f;
+    --ai-terminal-border: #3c3c3c;
+    --ai-terminal-text: #aaa;
+    --ai-message-user-bg: #0066cc;
+    --ai-message-assistant-bg: #ffffff;
+    --ai-message-assistant-border: #d2d2d2;
+    --ai-code-bg: #f0f0f0;
+}
+
+/* Dark Mode Overrides - Follows Cockpit/PatternFly dark theme */
+:root.pf-v6-theme-dark,
+.pf-v6-theme-dark {
+    --ai-bg-color: #1b1d21;
+    --ai-panel-bg: #212427;
+    --ai-header-bg: #212427;
+    --ai-border-color: #3d3d3d;
+    --ai-text-color: #e0e0e0;
+    --ai-text-muted: #8a8d90;
+    --ai-hover-bg: #2c2f33;
+    --ai-message-assistant-bg: #292e34;
+    --ai-message-assistant-border: #3d3d3d;
+    --ai-code-bg: #292e34;
+
+    // PatternFly 6 Global Overrides for dark mode consistency
+    --pf-v6-global--BackgroundColor--100: #212427;
+    --pf-v6-global--BackgroundColor--200: #1b1d21;
+}
+
+/* ========================================
    FULL-CANVAS LAYOUT
    ======================================== */
 
@@ -13,38 +55,41 @@
     flex-direction: column;
     height: 100vh;
     width: 100%;
-    background-color: #f5f5f5;
+    background-color: var(--ai-bg-color);
+    color: var(--ai-text-color);
     overflow: hidden;
 }
 
 /* Compact Header Bar - matches Cockpit toolbar style */
 .ai-agent-header {
     flex-shrink: 0;
-    background-color: #fff;
-    border-bottom: 1px solid #d2d2d2;
+    background-color: var(--ai-header-bg);
+    border-bottom: 1px solid var(--ai-border-color);
     padding: 8px 16px;
 }
 
 .header-icon {
-    color: #0066cc;
+    color: var(--ai-primary-color);
     font-size: 18px;
 }
 
 .header-title {
-    color: #151515;
+    color: var(--ai-text-color);
     font-size: 16px;
     font-weight: 600;
 }
 
 .header-hostname {
-    color: #6a6e73;
+    color: var(--ai-text-muted);
     font-size: 13px;
     font-family: 'RedHatMono', 'Liberation Mono', monospace;
 }
 
-.yolo-badge {
-    background-color: #f0ab00;
-    color: #151515;
+/* Safety Mode Badge */
+.safety-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 11px;
     font-weight: 700;
     padding: 2px 8px;
@@ -53,12 +98,168 @@
     letter-spacing: 0.5px;
 }
 
+.safety-badge-icon {
+    font-size: 10px;
+}
+
+.safety-badge--success,
+.safety-badge--info,
+.safety-badge--warning {
+    background-color: var(--ai-primary-color);
+    color: #fff;
+}
+
+.safety-badge--danger {
+    background-color: var(--ai-danger-color);
+    color: #fff;
+}
+
+/* Safety Mode Selector - Horizontal Segmented Control */
+.safety-mode-selector {
+    display: flex;
+    flex-direction: row;
+    border: 1px solid var(--ai-border-color);
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: var(--ai-bg-color);
+}
+
+.safety-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 8px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-right: 1px solid var(--ai-border-color);
+    min-width: 0;
+}
+
+.safety-option:last-child {
+    border-right: none;
+}
+
+.safety-option:hover {
+    background-color: var(--ai-hover-bg);
+}
+
+.safety-option:focus {
+    outline: 2px solid var(--ai-primary-color);
+    outline-offset: -2px;
+    z-index: 1;
+}
+
+.safety-option--selected {
+    background-color: var(--ai-primary-color) !important;
+    color: #fff;
+}
+
+.safety-option--selected .safety-option-icon,
+.safety-option--selected .safety-option-name {
+    color: #fff;
+}
+
+.safety-option--danger.safety-option--selected {
+    background-color: #c9190b !important;
+}
+
+.safety-option-icon {
+    font-size: 16px;
+    color: #6a6e73;
+}
+
+.safety-option-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ai-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.safety-option-desc {
+    font-size: 9px;
+    font-weight: 400;
+    color: var(--ai-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.8;
+}
+
+.safety-option--selected .safety-option-desc {
+    color: rgba(255, 255, 255, 0.8);
+}
+
 .header-settings-btn {
-    color: #6a6e73 !important;
+    color: var(--ai-text-muted) !important;
 }
 
 .header-settings-btn:hover {
-    color: #151515 !important;
+    color: var(--ai-text-color) !important;
+}
+
+/* Blocklist Patterns Display */
+.blocklist-patterns {
+    font-family: 'RedHatMono', 'Liberation Mono', monospace;
+    font-size: 12px;
+    background-color: var(--ai-code-bg);
+    color: var(--ai-text-color);
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 8px;
+    border: 1px solid var(--ai-border-color);
+}
+
+.blocklist-patterns div {
+    padding: 2px 0;
+    color: #c9190b;
+}
+
+:root.pf-v6-theme-dark .blocklist-patterns div,
+.pf-v6-theme-dark .blocklist-patterns div {
+    color: #f54f47;
+}
+
+/* Secrets Indicator */
+.secrets-indicator {
+    position: relative;
+    color: var(--ai-text-muted) !important;
+    transition: color 0.2s ease;
+}
+
+.secrets-indicator:hover {
+    color: var(--ai-text-color) !important;
+}
+
+.secrets-indicator--active {
+    color: #8a4fff !important;
+}
+
+.secrets-indicator--active:hover {
+    color: #a06fff !important;
+}
+
+.secrets-indicator__count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background-color: #8a4fff;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
 }
 
 /* Main Content Area - Split View */
@@ -67,7 +268,7 @@
     flex: 1;
     min-height: 0;
     gap: 0;
-    background-color: #f5f5f5;
+    background-color: var(--ai-bg-color);
 }
 
 /* Chat Panel - light theme */
@@ -77,8 +278,8 @@
     max-width: 50%;
     display: flex;
     flex-direction: column;
-    background-color: #fff;
-    border-right: 1px solid #d2d2d2;
+    background-color: var(--ai-panel-bg);
+    border-right: 1px solid var(--ai-border-color);
 }
 
 /* Terminal Panel - stays dark */
@@ -102,6 +303,21 @@
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
+    outline: none !important;
+
+    /* Override PatternFly card border variables */
+    --pf-v6-c-card--BorderColor: transparent !important;
+    --pf-v6-c-card--BorderWidth: 0 !important;
+    --pf-v6-c-card--BoxShadow: none !important;
+    --pf-v6-c-card--m-plain--BoxShadow: none !important;
+}
+
+/* Catch any pseudo-elements that might create borders */
+.terminal-card::before,
+.terminal-card::after {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 .terminal-card .pf-v6-c-card__header {
@@ -110,10 +326,18 @@
     padding: 8px 16px;
 }
 
-.terminal-card .pf-v6-c-card__title {
-    color: #fff;
+.terminal-card .pf-v6-c-card__title,
+.terminal-card .pf-v6-c-card__title-text,
+.terminal-card .pf-v6-c-card__header-main,
+.terminal-card .pf-v6-c-card__header *,
+.terminal-card [class*="pf-v6-c-card__title"] {
+    color: #fff !important;
     font-family: 'RedHatMono', 'Liberation Mono', monospace;
     font-size: 13px;
+}
+
+.terminal-card .pf-v6-c-card__title,
+.terminal-card .pf-v6-c-card__title-text {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -147,7 +371,8 @@
     font-family: 'RedHatMono', 'Liberation Mono', 'Consolas', monospace;
     font-size: 13px;
     line-height: 1.5;
-    color: #aaa;
+    line-height: 1.5;
+    color: #ffffff;
     background-color: #151515;
     white-space: pre-wrap;
     word-break: break-word;
@@ -251,23 +476,83 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background-color: #fff !important;
+    background-color: var(--ai-panel-bg) !important;
     border: none !important;
     border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+
+    /* Override PatternFly card border variables */
+    --pf-v6-c-card--BorderColor: transparent !important;
+    --pf-v6-c-card--BorderWidth: 0 !important;
+    --pf-v6-c-card--BoxShadow: none !important;
+}
+
+/* Catch any pseudo-elements that might create borders */
+.ai-agent-chat .pf-v6-c-card::before,
+.ai-agent-chat .pf-v6-c-card::after {
+    border: none !important;
+    outline: none !important;
     box-shadow: none !important;
 }
 
 .ai-agent-chat .pf-v6-c-card__body {
-    background-color: #f5f5f5;
+    background-color: var(--ai-bg-color);
     flex: 1;
     overflow-y: auto;
     padding: 16px;
 }
 
 .ai-agent-chat .pf-v6-c-card__footer {
-    background-color: #fff;
-    border-top: 1px solid #d2d2d2;
+    background-color: var(--ai-panel-bg);
+    border-top: 1px solid var(--ai-border-color);
     padding: 12px 16px;
+}
+
+/* Chat Input Styling */
+.ai-agent-chat textarea.pf-v6-c-form-control {
+    min-height: 44px;
+}
+
+/* Dark mode overrides for chat input helper */
+@mixin dark-input-overrides {
+    background-color: var(--ai-header-bg) !important;
+    border: 1px solid var(--ai-border-color) !important;
+    color: var(--ai-text-color) !important;
+    outline: none !important;
+    box-shadow: none !important;
+
+    /* Override PatternFly variables locally */
+    --pf-v6-c-form-control--BackgroundColor: var(--ai-header-bg);
+    --pf-v6-c-form-control--BorderColor: var(--ai-border-color);
+    --pf-v6-c-form-control--Color: var(--ai-text-color);
+    --pf-v6-c-form-control--focus--BoxShadow: none;
+    --pf-v6-c-form-control--focus--BorderBottomColor: var(--ai-primary-color);
+}
+
+:root.pf-v6-theme-dark .ai-agent-chat textarea.pf-v6-c-form-control {
+    @include dark-input-overrides;
+}
+
+/* Handle pseudo-elements that might create borders */
+:root.pf-v6-theme-dark .ai-agent-chat textarea.pf-v6-c-form-control::before,
+:root.pf-v6-theme-dark .ai-agent-chat textarea.pf-v6-c-form-control::after {
+    border-color: var(--ai-border-color) !important;
+}
+
+:root.pf-v6-theme-dark .ai-agent-chat textarea.pf-v6-c-form-control:hover {
+    border-bottom-color: var(--ai-primary-color) !important;
+    --pf-v6-c-form-control--hover--BorderBottomColor: var(--ai-primary-color);
+}
+
+:root.pf-v6-theme-dark .ai-agent-chat textarea.pf-v6-c-form-control:focus,
+:root.pf-v6-theme-dark .ai-agent-chat textarea.pf-v6-c-form-control:active {
+    background-color: var(--ai-terminal-bg) !important;
+    border-bottom-color: var(--ai-primary-color) !important;
+    outline: none !important;
+
+    --pf-v6-c-form-control--focus--BorderBottomColor: var(--ai-primary-color);
+    --pf-v6-c-form-control--focus--BackgroundColor: var(--ai-terminal-bg);
 }
 
 .chat-messages {
@@ -295,10 +580,10 @@
 /* Assistant messages - light theme */
 .message-bubble.assistant {
     align-self: flex-start;
-    background-color: #fff;
-    border: 1px solid #d2d2d2;
+    background-color: var(--ai-message-assistant-bg);
+    border: 1px solid var(--ai-message-assistant-border);
     border-bottom-left-radius: 2px;
-    color: #151515;
+    color: var(--ai-text-color);
 }
 
 /* Error messages */
@@ -309,9 +594,9 @@
 
 /* Processing indicator */
 .message-bubble.processing {
-    background-color: #fff;
-    border: 1px solid #d2d2d2;
-    color: #6a6e73;
+    background-color: var(--ai-message-assistant-bg);
+    border: 1px solid var(--ai-message-assistant-border);
+    color: var(--ai-text-muted);
 }
 
 /* Message icon */
@@ -386,10 +671,10 @@
     code {
         font-family: 'RedHatMono', 'Liberation Mono', monospace;
         font-size: 0.9em;
-        background-color: #f0f0f0;
+        background-color: var(--ai-code-bg);
         padding: 2px 6px;
         border-radius: 3px;
-        color: #c9190b;
+        color: var(--ai-danger-color);
     }
 
     pre {
@@ -419,8 +704,8 @@
     blockquote {
         margin: 8px 0;
         padding: 8px 12px;
-        border-left: 4px solid #0066cc;
-        background-color: #f5f5f5;
+        border-left: 4px solid var(--ai-primary-color);
+        background-color: var(--ai-bg-color);
     }
 
     a {
@@ -440,19 +725,19 @@
 
     th,
     td {
-        border: 1px solid #d2d2d2;
+        border: 1px solid var(--ai-border-color);
         padding: 6px 10px;
         text-align: left;
     }
 
     th {
-        background-color: #f5f5f5;
+        background-color: var(--ai-bg-color);
         font-weight: 600;
     }
 
     hr {
         border: none;
-        border-top: 1px solid #d2d2d2;
+        border-top: 1px solid var(--ai-border-color);
         margin: 12px 0;
     }
 
@@ -480,9 +765,9 @@
 .message-bubble.action {
     align-self: stretch;
     max-width: 100%;
-    background-color: #fff;
-    border: 1px solid #d2d2d2;
-    border-left: 4px solid #0066cc;
+    background-color: var(--ai-panel-bg);
+    border: 1px solid var(--ai-border-color);
+    border-left: 4px solid var(--ai-primary-color);
     border-radius: 4px;
     padding: 12px 16px;
 }
@@ -518,8 +803,8 @@
 .action-type {
     font-size: 11px;
     font-weight: 700;
-    color: #6a6e73;
-    background-color: #f0f0f0;
+    color: var(--ai-text-muted);
+    background-color: var(--ai-code-bg);
     padding: 2px 8px;
     border-radius: 3px;
     letter-spacing: 0.5px;
@@ -543,7 +828,7 @@
 
 .action-description {
     font-size: 14px;
-    color: #151515;
+    color: var(--ai-text-color);
     margin-bottom: 8px;
 }
 
@@ -561,12 +846,156 @@
 }
 
 /* ========================================
+   FILE OPERATION STYLING
+   ======================================== */
+
+/* File details container */
+.action-file-details,
+.approval-file-details {
+    margin-top: 8px;
+}
+
+/* File path display */
+.action-file-path,
+.approval-file-path {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background-color: #151515;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.file-path-icon {
+    color: #73bcf7;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.file-path-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8a8d90;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.file-path-value {
+    font-family: 'RedHatMono', 'Liberation Mono', monospace;
+    font-size: 13px;
+    color: #73bcf7;
+    background: none;
+    padding: 0;
+    word-break: break-all;
+}
+
+/* Collapsible file content */
+.file-content-collapsible {
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.file-content-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    background-color: #1f1f1f;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.2s ease;
+}
+
+.file-content-toggle:hover {
+    background-color: #2a2a2a;
+}
+
+.file-content-toggle-icon {
+    color: #73bcf7;
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.file-content-toggle-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e0e0e0;
+    flex-grow: 1;
+}
+
+.file-content-toggle-meta {
+    font-size: 11px;
+    color: #8a8d90;
+    font-family: 'RedHatMono', 'Liberation Mono', monospace;
+}
+
+.file-content-body {
+    background-color: #151515;
+    border-top: 1px solid #3c3c3c;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.file-content-body pre {
+    margin: 0;
+    padding: 12px 16px;
+    font-family: 'RedHatMono', 'Liberation Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #aaa;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Scrollbar for file content */
+.file-content-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.file-content-body::-webkit-scrollbar-track {
+    background: #151515;
+}
+
+.file-content-body::-webkit-scrollbar-thumb {
+    background-color: #3c3c3c;
+    border-radius: 3px;
+}
+
+.file-content-body::-webkit-scrollbar-thumb:hover {
+    background-color: #484f58;
+}
+
+/* Action type badge */
+.approval-action-type {
+    margin-bottom: 12px;
+}
+
+.action-type-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    background-color: var(--ai-code-bg);
+    color: var(--ai-text-muted);
+}
+
+/* ========================================
    INLINE APPROVAL CARD
    ======================================== */
 
 .approval-card {
-    background-color: #fff;
-    border: 2px solid #0066cc;
+    background-color: var(--ai-panel-bg);
+    border: 2px solid var(--ai-primary-color);
     border-radius: 4px;
     padding: 16px;
     margin: 8px 0;
@@ -606,21 +1035,21 @@
 .approval-header {
     margin-bottom: 12px;
     padding-bottom: 12px;
-    border-bottom: 1px solid #d2d2d2;
+    border-bottom: 1px solid var(--ai-border-color);
 }
 
 .approval-header strong {
-    color: #151515;
+    color: var(--ai-text-color);
 }
 
 .approval-icon {
-    color: #0066cc;
+    color: var(--ai-primary-color);
     font-size: 18px;
 }
 
 .approval-description {
     font-size: 14px;
-    color: #151515;
+    color: var(--ai-text-color);
     margin-bottom: 12px;
     line-height: 1.5;
 }
@@ -675,9 +1104,9 @@
 }
 
 .approval-btn.deny {
-    background-color: #fff;
-    color: #151515;
-    border: 1px solid #d2d2d2;
+    background-color: var(--ai-panel-bg);
+    color: var(--ai-text-color);
+    border: 1px solid var(--ai-border-color);
 }
 
 .approval-btn.deny:hover {
@@ -745,9 +1174,23 @@
     overflow: hidden;
 }
 
-/* Chat card specific */
+/* Remove card shadows and outlines in dark mode */
+.pf-v6-theme-dark .pf-v6-c-card,
+:root.pf-v6-theme-dark .pf-v6-c-card {
+    box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+}
+
+/* Chat card specific - only add border in light mode */
 .pf-v6-c-split__item:first-child .pf-v6-c-card {
-    border: 1px solid #d0d7de;
+    border: 1px solid var(--ai-border-color);
+}
+
+/* Remove the border in dark mode */
+.pf-v6-theme-dark .pf-v6-c-split__item:first-child .pf-v6-c-card,
+:root.pf-v6-theme-dark .pf-v6-c-split__item:first-child .pf-v6-c-card {
+    border: none !important;
 }
 
 /* Form improvements in modals */
@@ -779,28 +1222,28 @@
 /* TextArea styling - light theme */
 .ai-agent-chat textarea,
 .pf-v6-c-form-control textarea {
-    background-color: #fff !important;
-    border: 1px solid #d2d2d2 !important;
+    background-color: var(--ai-panel-bg) !important;
+    border: 1px solid var(--ai-border-color) !important;
     border-radius: 4px !important;
-    color: #151515 !important;
+    color: var(--ai-text-color) !important;
     font-size: 14px;
 }
 
 .ai-agent-chat textarea:focus,
 .pf-v6-c-form-control textarea:focus {
-    border-color: #0066cc !important;
-    box-shadow: 0 0 0 1px #0066cc !important;
+    border-color: var(--ai-primary-color) !important;
+    box-shadow: 0 0 0 1px var(--ai-primary-color) !important;
     outline: none !important;
 }
 
 .ai-agent-chat textarea::placeholder {
-    color: #6a6e73;
+    color: var(--ai-text-muted);
 }
 
 /* Send button - Cockpit style */
 .ai-agent-chat .pf-v6-c-button.pf-m-primary {
-    background-color: #0066cc !important;
-    border: 1px solid #0066cc !important;
+    background-color: var(--ai-primary-color) !important;
+    border: 1px solid var(--ai-primary-color) !important;
     border-radius: 4px !important;
 }
 
@@ -841,5 +1284,251 @@
     .message-bubble {
         max-width: 95%;
         padding: 8px 12px;
+    }
+}
+
+/* ========================================
+   DARK MODE OVERRIDES
+   ======================================== */
+
+.pf-v6-theme-dark {
+    background-color: var(--ai-bg-color);
+
+    .ai-agent-header {
+        background-color: var(--ai-header-bg);
+        border-bottom: 1px solid var(--ai-border-color);
+
+        .header-title {
+            color: #fff;
+        }
+
+        .header-settings-btn {
+            color: #ccc !important;
+
+            &:hover {
+                color: #fff !important;
+            }
+        }
+    }
+
+    .ai-agent-content {
+        background-color: var(--ai-bg-color);
+    }
+
+    // Ensure all major panels have consistent dark styling - no jarring outlines
+    .pf-v6-c-card,
+    .ai-agent-chat,
+    .ai-agent-terminal,
+    .pf-v6-c-split__item {
+        border: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+
+    /* Chat Panel Dark Mode */
+    .ai-agent-chat {
+        background-color: var(--ai-panel-bg);
+        border: none !important;
+        border-right: 1px solid #2d2d2d !important;
+        box-shadow: none !important;
+        outline: none !important;
+
+        .pf-v6-c-card {
+            background-color: var(--ai-panel-bg) !important;
+            border: none !important;
+            box-shadow: none !important;
+            outline: none !important;
+
+            /* Override PatternFly card border variables */
+            --pf-v6-c-card--BorderColor: transparent !important;
+            --pf-v6-c-card--BorderWidth: 0 !important;
+            --pf-v6-c-card--BoxShadow: none !important;
+        }
+
+        .pf-v6-c-card::before,
+        .pf-v6-c-card::after {
+            display: none !important;
+        }
+
+        .pf-v6-c-card__body {
+            background-color: var(--ai-bg-color);
+            /* Slightly darker background for message area */
+        }
+
+        .pf-v6-c-card__footer {
+            background-color: var(--ai-panel-bg);
+            border-top: 1px solid var(--ai-border-color);
+        }
+    }
+
+    /* Terminal Panel Dark Mode */
+    .ai-agent-terminal {
+        background-color: #151515;
+    }
+
+    /* Message Bubbles */
+    .message-bubble.assistant {
+        background-color: var(--ai-message-assistant-bg);
+        border: 1px solid var(--ai-border-color);
+        color: var(--ai-text-color);
+
+        .message-icon {
+            background-color: #3c3f42;
+            color: #d2d2d2;
+        }
+    }
+
+    .message-bubble.processing {
+        background-color: var(--ai-message-assistant-bg);
+        border: 1px solid var(--ai-border-color);
+        color: var(--ai-text-muted);
+
+        .message-icon {
+            background-color: #3c3f42;
+        }
+    }
+
+    .message-time {
+        color: #aaa;
+    }
+
+    /* Action Messages */
+    .message-bubble.action {
+        background-color: var(--ai-message-assistant-bg);
+        border: 1px solid var(--ai-border-color);
+        border-left: 4px solid #73bcf7;
+        /* Lighter blue for dark mode */
+
+        &.success {
+            border-left-color: #92d400;
+        }
+
+        &.failure {
+            border-left-color: #f54f47;
+        }
+    }
+
+    .action-type {
+        background-color: var(--ai-code-bg);
+        color: #d2d2d2;
+    }
+
+    .action-description {
+        color: #e0e0e0;
+    }
+
+    /* Approval Card */
+    .approval-card {
+        background-color: var(--ai-message-assistant-bg);
+        border: 2px solid #73bcf7;
+
+        &.risk-critical {
+            background-color: #2a1f30;
+        }
+    }
+
+    .approval-header {
+        border-bottom-color: #2a2a2a;
+
+        strong {
+            color: #fff;
+        }
+    }
+
+    .approval-description {
+        color: #e0e0e0;
+    }
+
+    .approval-command-label {
+        color: #aaa;
+    }
+
+    .approval-btn.deny {
+        background-color: var(--ai-panel-bg);
+        color: var(--ai-text-color);
+        border-color: var(--ai-border-color);
+
+        &:hover {
+            background-color: var(--ai-hover-bg);
+            border-color: var(--ai-danger-color);
+        }
+    }
+
+    .approval-warning {
+        background-color: #2a1f1f;
+        border-color: #c9190b;
+        color: #ffcccc;
+    }
+
+    /* Markdown Content */
+    .markdown-content {
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            color: #fff;
+        }
+
+        strong {
+            color: #fff;
+        }
+
+        code {
+            background-color: #3c3f42;
+            color: #ffcccc;
+        }
+
+        pre {
+            background-color: #0f0f0f;
+            border: 1px solid #333;
+        }
+
+        blockquote {
+            background-color: #292e34;
+            color: #ccc;
+            border-left-color: #73bcf7;
+        }
+
+        a {
+            color: #73bcf7;
+        }
+
+        table,
+        th,
+        td {
+            border-color: #444;
+        }
+
+        th {
+            background-color: #292e34;
+            color: #fff;
+        }
+
+        hr {
+            border-top-color: #444;
+        }
+    }
+
+    /* Input field styling */
+    .pf-v6-c-form-control {
+        background-color: #3c3f42;
+        color: #fff;
+        border-color: #575757;
+
+        &:focus {
+            border-bottom-color: #73bcf7;
+        }
+
+        & textarea {
+            background-color: #3c3f42;
+            color: #fff;
+        }
+
+        &::placeholder {
+            color: #aaa;
+        }
     }
 }
