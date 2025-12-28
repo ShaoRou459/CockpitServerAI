@@ -39,6 +39,7 @@ export const Application = () => {
     const [hostname, setHostname] = useState<string>('');
     const [terminalReady, setTerminalReady] = useState(false);
     const [detectedSecrets, setDetectedSecrets] = useState<{ id: string; type: string; detectedAt: Date }[]>([]);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
 
     // Terminal ref for sending commands
     const terminalRef = useRef<TerminalViewHandle>(null);
@@ -48,7 +49,10 @@ export const Application = () => {
 
     // Load settings and hostname on mount
     useEffect(() => {
-        loadSettings().then(setSettings);
+        loadSettings().then(s => {
+            setSettings(s);
+            setSettingsLoaded(true);
+        });
 
         const hostnameFile = cockpit.file('/etc/hostname');
         hostnameFile.watch(content => setHostname((content as string)?.trim() ?? 'unknown'));
@@ -69,14 +73,18 @@ export const Application = () => {
 
     // Add welcome message on first load
     useEffect(() => {
-        if (messages.length === 0) {
+        if (messages.length === 0 && hostname && settingsLoaded) {
+            const configured = settings.provider === 'custom'
+                ? Boolean(settings.baseUrl && settings.model)
+                : Boolean(settings.apiKey && settings.provider);
+            const status = configured ? 'Ready' : 'Not Configured';
             setMessages([{
                 role: 'assistant',
-                content: `Hello! I'm your AI assistant for managing this server (${hostname || 'loading...'}). I can help you with:\n\n• Running shell commands\n• Managing services\n• Checking system status\n• Troubleshooting issues\n\nWhat would you like to do?`,
+                content: `**${hostname}** | ${settings.model} | ${status}`,
                 timestamp: new Date()
             }]);
         }
-    }, [hostname, messages.length]);
+    }, [hostname, messages.length, settingsLoaded, settings]);
 
     // Handle sending a message
     const handleSendMessage = useCallback(async (content: string) => {

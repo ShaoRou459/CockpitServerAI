@@ -23,7 +23,6 @@ import {
     PaperPlaneIcon,
     CogIcon,
     RobotIcon,
-    UserIcon,
     TerminalIcon,
     CheckCircleIcon,
     TimesCircleIcon,
@@ -219,84 +218,77 @@ const FileContentCollapsible: React.FC<{
     );
 };
 
-// Inline approval component
+// Compact inline approval component
 const InlineApproval: React.FC<{
     action: PendingAction;
     onApprove: () => void;
     onDeny: () => void;
 }> = ({ action, onApprove, onDeny }) => {
-    const riskColors: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
-        low: { color: 'green', icon: <CheckCircleIcon />, label: 'Low Risk' },
-        medium: { color: 'orange', icon: <ExclamationTriangleIcon />, label: 'Medium Risk' },
-        high: { color: 'red', icon: <ExclamationTriangleIcon />, label: 'High Risk' },
-        critical: { color: 'purple', icon: <ShieldAltIcon />, label: 'Critical' }
-    };
+    const [expanded, setExpanded] = useState(false);
 
-    const risk = riskColors[action.risk_level] || riskColors.medium;
-
-    const getActionTypeLabel = () => {
+    // Get the primary display text
+    const getPrimaryText = () => {
         switch (action.type) {
             case 'command':
-                return 'Command';
+                return `$ ${action.command}`;
             case 'file_read':
-                return 'Read File';
+                return `read ${action.path}`;
             case 'file_write':
-                return 'Write File';
+                return `write ${action.path}`;
             case 'service':
-                return 'Service';
+                return `systemctl ${action.operation} ${action.service}`;
             default:
-                return 'Action';
+                return action.description;
+        }
+    };
+
+    const getRiskColor = () => {
+        switch (action.risk_level) {
+            case 'low': return '#3e8635';
+            case 'medium': return '#f0ab00';
+            case 'high': return '#c9190b';
+            case 'critical': return '#6753ac';
+            default: return '#f0ab00';
         }
     };
 
     return (
-        <div className={`approval-card risk-${action.risk_level}`}>
-            {/* Header */}
-            <div className="approval-header">
-                <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
-                    <FlexItem>
-                        <Flex alignItems={{ default: 'alignItemsCenter' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                            <FlexItem>
-                                <ShieldAltIcon className="approval-icon" />
-                            </FlexItem>
-                            <FlexItem>
-                                <strong>{_("Action Approval Required")}</strong>
-                            </FlexItem>
-                        </Flex>
-                    </FlexItem>
-                    <FlexItem>
-                        <Label color={risk.color as any} icon={risk.icon}>
-                            {risk.label}
-                        </Label>
-                    </FlexItem>
-                </Flex>
-            </div>
-
-            {/* Description */}
-            <div className="approval-description">
-                {action.description}
-            </div>
-
-            {/* Action Type Badge */}
-            <div className="approval-action-type">
-                <span className="action-type-badge">{getActionTypeLabel()}</span>
-            </div>
-
-            {/* Command display for 'command' type */}
-            {action.type === 'command' && (
-                <div className="approval-command">
-                    <div className="approval-command-label">Command:</div>
-                    <code>{action.command}</code>
+        <div className={`approval-compact risk-${action.risk_level}`} style={{ borderLeftColor: getRiskColor() }}>
+            <div className="approval-compact-header">
+                <button
+                    className="approval-compact-toggle"
+                    onClick={() => setExpanded(!expanded)}
+                    type="button"
+                >
+                    <span className="action-compact-icon">
+                        {expanded ? <AngleDownIcon /> : <AngleRightIcon />}
+                    </span>
+                    <span className="approval-compact-risk" style={{ color: getRiskColor() }}>
+                        <ExclamationTriangleIcon />
+                    </span>
+                    <code className="action-compact-command">{getPrimaryText()}</code>
+                </button>
+                <div className="approval-compact-buttons">
+                    <button
+                        className="approval-compact-btn approve"
+                        onClick={onApprove}
+                        title="Approve"
+                    >
+                        <CheckCircleIcon />
+                    </button>
+                    <button
+                        className="approval-compact-btn deny"
+                        onClick={onDeny}
+                        title="Deny"
+                    >
+                        <TimesCircleIcon />
+                    </button>
                 </div>
-            )}
-
-            {/* File path and content for file operations */}
-            {(action.type === 'file_read' || action.type === 'file_write') && (
-                <div className="approval-file-details">
-                    <div className="approval-file-path">
-                        <FileIcon className="file-path-icon" />
-                        <span className="file-path-label">Path:</span>
-                        <code className="file-path-value">{action.path}</code>
+            </div>
+            {expanded && (
+                <div className="action-compact-details">
+                    <div className="action-compact-description">
+                        {action.description}
                     </div>
                     {action.type === 'file_write' && action.content && (
                         <FileContentCollapsible
@@ -304,38 +296,11 @@ const InlineApproval: React.FC<{
                             content={action.content}
                         />
                     )}
-                </div>
-            )}
-
-            {/* Service display */}
-            {action.type === 'service' && (
-                <div className="approval-command">
-                    <div className="approval-command-label">Service Operation:</div>
-                    <code>{action.operation} {action.service}</code>
-                </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="approval-actions">
-                <Button
-                    variant="primary"
-                    onClick={onApprove}
-                    className="approval-btn approve"
-                >
-                    <CheckCircleIcon /> {_("Approve & Execute")}
-                </Button>
-                <Button
-                    variant="secondary"
-                    onClick={onDeny}
-                    className="approval-btn deny"
-                >
-                    <TimesCircleIcon /> {_("Deny")}
-                </Button>
-            </div>
-
-            {action.risk_level === 'critical' && (
-                <div className="approval-warning">
-                    ⚠️ {_("This is a critical operation. Please review carefully before approving.")}
+                    {action.risk_level === 'critical' && (
+                        <div className="approval-compact-warning">
+                            Critical operation - review carefully
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -356,85 +321,92 @@ const getActionIcon = (type: Action['type']) => {
 };
 
 // Message bubble component
+// Compact action message component
+const ActionBubble: React.FC<{ message: Message }> = ({ message }) => {
+    const [expanded, setExpanded] = useState(false);
+    const success = message.result?.success;
+    const action = message.action!;
+
+    // Get the primary display text (command, path, or service operation)
+    const getPrimaryText = () => {
+        switch (action.type) {
+            case 'command':
+                return `$ ${action.command}`;
+            case 'file_read':
+                return `read ${action.path}`;
+            case 'file_write':
+                return `write ${action.path}`;
+            case 'service':
+                return `systemctl ${action.operation} ${action.service}`;
+            default:
+                return action.description;
+        }
+    };
+
+    const hasOutput = message.result?.stdout || message.result?.stderr ||
+        (action.type === 'file_write' && action.content) ||
+        (action.type === 'file_read' && message.result?.stdout);
+
+    return (
+        <div className={`action-compact ${success ? 'success' : 'failure'}`}>
+            <button
+                className="action-compact-header"
+                onClick={() => setExpanded(!expanded)}
+                type="button"
+            >
+                <span className="action-compact-icon">
+                    {expanded ? <AngleDownIcon /> : <AngleRightIcon />}
+                </span>
+                <span className={`action-compact-status ${success ? 'success' : 'failure'}`}>
+                    {success ? <CheckCircleIcon /> : <TimesCircleIcon />}
+                </span>
+                <code className="action-compact-command">{getPrimaryText()}</code>
+            </button>
+            {expanded && (
+                <div className="action-compact-details">
+                    <div className="action-compact-description">
+                        {action.description}
+                    </div>
+                    {/* Command output */}
+                    {action.type === 'command' && message.result?.stdout && (
+                        <div className="action-compact-output">
+                            <pre>{message.result.stdout}</pre>
+                        </div>
+                    )}
+                    {/* Error output */}
+                    {message.result?.stderr && (
+                        <div className="action-compact-output error">
+                            <pre>{message.result.stderr}</pre>
+                        </div>
+                    )}
+                    {/* File write content */}
+                    {action.type === 'file_write' && action.content && (
+                        <FileContentCollapsible
+                            label="Content Written"
+                            content={action.content}
+                        />
+                    )}
+                    {/* File read content */}
+                    {action.type === 'file_read' && message.result?.stdout && (
+                        <FileContentCollapsible
+                            label="Content Read"
+                            content={message.result.stdout}
+                        />
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
     const isUser = message.role === 'user';
     const isAction = message.role === 'action';
     const isError = message.isError;
 
-    // Special rendering for action messages
+    // Special rendering for action messages - use compact view
     if (isAction && message.action) {
-        const success = message.result?.success;
-        const action = message.action;
-        const isFileOperation = action.type === 'file_read' || action.type === 'file_write';
-
-        return (
-            <div className={`message-bubble action ${success ? 'success' : 'failure'}`}>
-                <Flex spaceItems={{ default: 'spaceItemsSm' }} alignItems={{ default: 'alignItemsFlexStart' }}>
-                    <FlexItem>
-                        <div className={`message-icon action-icon ${success ? 'success' : 'failure'}`}>
-                            {getActionIcon(action.type)}
-                        </div>
-                    </FlexItem>
-                    <FlexItem grow={{ default: 'grow' }}>
-                        <div className="action-header">
-                            <span className="action-type">{action.type.toUpperCase()}</span>
-                            <span className={`action-status ${success ? 'success' : 'failure'}`}>
-                                {success ? <CheckCircleIcon /> : <TimesCircleIcon />}
-                                {success ? 'Success' : 'Failed'}
-                            </span>
-                        </div>
-                        <div className="action-description">
-                            {action.description}
-                        </div>
-
-                        {/* Command display for command type */}
-                        {action.type === 'command' && action.command && (
-                            <div className="action-command">
-                                <code>$ {action.command}</code>
-                            </div>
-                        )}
-
-                        {/* File operation details */}
-                        {isFileOperation && (
-                            <div className="action-file-details">
-                                <div className="action-file-path">
-                                    <FileIcon className="file-path-icon" />
-                                    <span className="file-path-label">Path:</span>
-                                    <code className="file-path-value">{action.path}</code>
-                                </div>
-
-                                {/* For file_write: show content that was written */}
-                                {action.type === 'file_write' && action.content && (
-                                    <FileContentCollapsible
-                                        label="Content Written"
-                                        content={action.content}
-                                    />
-                                )}
-
-                                {/* For file_read: show content that was read (from result) */}
-                                {action.type === 'file_read' && message.result?.stdout && (
-                                    <FileContentCollapsible
-                                        label="Content Read"
-                                        content={message.result.stdout}
-                                    />
-                                )}
-                            </div>
-                        )}
-
-                        {/* Service operation display */}
-                        {action.type === 'service' && (
-                            <div className="action-command">
-                                <code>systemctl {action.operation} {action.service}</code>
-                            </div>
-                        )}
-
-                        <div className="message-time">
-                            {message.timestamp.toLocaleTimeString()}
-                        </div>
-                    </FlexItem>
-                </Flex>
-            </div>
-        );
+        return <ActionBubble message={message} />;
     }
 
     // Parse markdown for assistant messages
@@ -461,21 +433,12 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
 
     return (
         <div className={`message-bubble ${message.role} ${isError ? 'error' : ''}`}>
-            <Flex spaceItems={{ default: 'spaceItemsSm' }} alignItems={{ default: 'alignItemsFlexStart' }}>
-                <FlexItem>
-                    <div className="message-icon">
-                        {isUser ? <UserIcon /> : <RobotIcon />}
-                    </div>
-                </FlexItem>
-                <FlexItem grow={{ default: 'grow' }}>
-                    <div className="message-content">
-                        {renderContent()}
-                    </div>
-                    <div className="message-time">
-                        {message.timestamp.toLocaleTimeString()}
-                    </div>
-                </FlexItem>
-            </Flex>
+            <div className="message-content">
+                {renderContent()}
+            </div>
+            <div className="message-time">
+                {message.timestamp.toLocaleTimeString()}
+            </div>
         </div>
     );
 };

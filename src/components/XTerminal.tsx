@@ -233,8 +233,8 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                 // Remove stty resize command (we send this internally)
                 displayData = displayData.replace(/stty cols \d+ rows \d+\r?\n?/g, '');
 
-                // Only write to terminal if there's something left to display
-                if (displayData.trim() || displayData.includes('\n')) {
+                // Write to terminal if there's anything to display (including spaces)
+                if (displayData.length > 0) {
                     terminal.write(displayData);
                 }
 
