@@ -18,12 +18,16 @@ type ActionCallback = (action: Action) => Promise<boolean>;
 type OutputCallback = (output: string) => void;
 type ActionLogCallback = (action: Action, result: CommandResult) => void;
 type CommandExecutor = (command: string) => Promise<{ output: string; exitCode: number; cwd: string }>;
+type InteractiveCallback = (action: Action, hint: string) => void;
+type IntermediateResponseCallback = (response: string) => void;
 
 interface ProcessOptions {
     hostname: string;
     onAction: ActionCallback;
     onOutput: OutputCallback;
     onActionExecuted?: ActionLogCallback;
+    onInteractiveCommand?: InteractiveCallback;  // Called when interactive command starts
+    onIntermediateResponse?: IntermediateResponseCallback;  // Called to show AI response before command completes
     executeCommand: CommandExecutor;  // Execute command via terminal
 }
 
@@ -49,7 +53,7 @@ export class AgentController {
     }
 
     async processMessage(userMessage: string, options: ProcessOptions): Promise<string> {
-        const { hostname, onAction, onOutput, onActionExecuted, executeCommand } = options;
+        const { hostname, onAction, onOutput, onActionExecuted, onInteractiveCommand, onIntermediateResponse, executeCommand } = options;
 
         // Add user message to history
         this.conversationHistory.push({
@@ -87,12 +91,19 @@ export class AgentController {
                     break;
                 }
 
+                // For interactive commands, show the AI response immediately before waiting
+                const hasInteractive = aiResponse.actions.some(a => a.interactive);
+                if (hasInteractive && onIntermediateResponse && aiResponse.response) {
+                    onIntermediateResponse(aiResponse.response);
+                }
+
                 // Execute actions
                 const results = await this.executeActions(
                     aiResponse.actions,
                     onAction,
                     onOutput,
                     onActionExecuted,
+                    onInteractiveCommand,
                     executeCommand
                 );
 
@@ -140,6 +151,7 @@ export class AgentController {
         onAction: ActionCallback,
         onOutput: OutputCallback,
         onActionExecuted: ActionLogCallback | undefined,
+        onInteractiveCommand: InteractiveCallback | undefined,
         executeCommand: CommandExecutor
     ): Promise<{ action: Action; result: CommandResult }[]> {
         const results: { action: Action; result: CommandResult }[] = [];
@@ -157,6 +169,12 @@ export class AgentController {
             if (!approved) {
                 onOutput(`\n❌ Denied: ${action.description}\n`);
                 continue;
+            }
+
+            // Notify about interactive command BEFORE executing
+            if (action.interactive && onInteractiveCommand) {
+                const hint = action.interactive_hint || 'This command requires input in the terminal';
+                onInteractiveCommand(action, hint);
             }
 
             // Execute the action
@@ -431,6 +449,20 @@ You MUST respond with valid JSON in this exact format:
 - medium: Service management, package installation, non-destructive changes
 - high: Configuration file changes, user management, firewall rules
 - critical: rm -rf, disk operations, /etc/passwd changes, anything destructive
+
+## Interactive Commands
+Some commands require user input in the terminal (passwords, confirmations, interactive editors).
+For these commands, set "interactive": true and provide "interactive_hint" with instructions.
+
+Examples of interactive commands:
+- sudo (requires password): interactive_hint: "Enter your sudo password in the terminal"
+- ssh (may require password/confirmation): interactive_hint: "Confirm host key or enter password in terminal"
+- passwd: interactive_hint: "Enter the new password when prompted"
+- apt install without -y: interactive_hint: "Confirm installation in the terminal"
+- vim/nano/editors: interactive_hint: "Edit the file in the terminal, then save and exit"
+- mysql/psql interactive: interactive_hint: "Execute your queries, then type 'exit' to finish"
+
+When a command is interactive, I will show your hint to the user so they know to interact with the terminal.
 
 ## Multi-Step Execution
 - You can include multiple actions in one response

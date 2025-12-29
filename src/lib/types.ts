@@ -6,7 +6,7 @@ import type { RiskLevel } from './settings';
 
 // Message in chat history
 export interface Message {
-    role: 'user' | 'assistant' | 'system' | 'action';
+    role: 'user' | 'assistant' | 'system' | 'action' | 'interactive';
     content: string;
     timestamp: Date;
     isError?: boolean;
@@ -24,6 +24,8 @@ export interface Action {
     operation?: 'start' | 'stop' | 'restart' | 'status';
     description: string;
     risk_level: RiskLevel;
+    interactive?: boolean;  // True if command may require user input (sudo, ssh, etc.)
+    interactive_hint?: string;  // Message to show user about what input is needed
 }
 
 // Pending action awaiting user approval

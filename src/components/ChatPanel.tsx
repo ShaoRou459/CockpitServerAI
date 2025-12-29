@@ -399,14 +399,61 @@ const ActionBubble: React.FC<{ message: Message }> = ({ message }) => {
     );
 };
 
+// Interactive command notification
+const InteractiveBubble: React.FC<{ message: Message }> = ({ message }) => {
+    const action = message.action;
+
+    // Get the command text to display
+    const getCommandText = () => {
+        if (!action) return null;
+        switch (action.type) {
+            case 'command':
+                return `$ ${action.command}`;
+            case 'file_read':
+                return `read ${action.path}`;
+            case 'file_write':
+                return `write ${action.path}`;
+            case 'service':
+                return `systemctl ${action.operation} ${action.service}`;
+            default:
+                return action.description;
+        }
+    };
+
+    const commandText = getCommandText();
+
+    return (
+        <div className="interactive-notice">
+            <div className="interactive-notice-header">
+                <TerminalIcon className="interactive-notice-icon" />
+                <span className="interactive-notice-title">Interactive Command</span>
+            </div>
+            {commandText && (
+                <div className="interactive-notice-command">
+                    <code>{commandText}</code>
+                </div>
+            )}
+            <div className="interactive-notice-hint">
+                {message.content}
+            </div>
+        </div>
+    );
+};
+
 const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
     const isUser = message.role === 'user';
     const isAction = message.role === 'action';
+    const isInteractive = message.role === 'interactive';
     const isError = message.isError;
 
     // Special rendering for action messages - use compact view
     if (isAction && message.action) {
         return <ActionBubble message={message} />;
+    }
+
+    // Special rendering for interactive command notices
+    if (isInteractive) {
+        return <InteractiveBubble message={message} />;
     }
 
     // Parse markdown for assistant messages

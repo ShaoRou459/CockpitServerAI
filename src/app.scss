@@ -945,6 +945,58 @@
     color: #f54f47;
 }
 
+/* Interactive Command Notice */
+.interactive-notice {
+    margin: 4px 0;
+    border-radius: 4px;
+    overflow: hidden;
+    border-left: 3px solid #2b9af3;
+    background-color: var(--ai-panel-bg);
+    border: 1px solid var(--ai-border-color);
+    border-left: 3px solid #2b9af3;
+}
+
+.interactive-notice-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: rgba(43, 154, 243, 0.1);
+    border-bottom: 1px solid var(--ai-border-color);
+}
+
+.interactive-notice-icon {
+    color: #2b9af3;
+    font-size: 14px;
+}
+
+.interactive-notice-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2b9af3;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.interactive-notice-command {
+    padding: 8px 12px;
+    background-color: #151515;
+    border-bottom: 1px solid var(--ai-border-color);
+
+    code {
+        font-family: 'RedHatMono', 'Liberation Mono', monospace;
+        font-size: 13px;
+        color: #73bcf7;
+    }
+}
+
+.interactive-notice-hint {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--ai-text-color);
+    line-height: 1.5;
+}
+
 /* Compact Approval Display */
 .approval-compact {
     margin: 4px 0;
@@ -1656,6 +1708,27 @@
 
     .action-compact-status.failure {
         color: #f54f47;
+    }
+
+    /* Interactive Notice - Dark Mode */
+    .interactive-notice {
+        background-color: var(--ai-message-assistant-bg);
+        border-color: var(--ai-border-color);
+        border-left-color: #54aef7;
+    }
+
+    .interactive-notice-header {
+        background-color: rgba(84, 174, 247, 0.15);
+        border-bottom-color: var(--ai-border-color);
+    }
+
+    .interactive-notice-icon,
+    .interactive-notice-title {
+        color: #54aef7;
+    }
+
+    .interactive-notice-hint {
+        color: #e0e0e0;
     }
 
     /* Compact Approval - Dark Mode */

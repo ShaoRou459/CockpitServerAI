@@ -97,6 +97,10 @@ export const Application = () => {
         setMessages(prev => [...prev, userMessage]);
         setIsProcessing(true);
 
+        // Track if we've already shown an intermediate response (to avoid duplicates)
+        let intermediateResponseShown = false;
+        let lastIntermediateResponse = '';
+
         try {
             // Get the auto-approve levels for current safety mode
             const safetyConfig = SAFETY_MODES[settings.safetyMode];
@@ -129,15 +133,61 @@ export const Application = () => {
                     // Output goes directly to the terminal via executeCommand
                 },
                 onActionExecuted: (action, result) => {
-                    // Add action to chat
-                    const actionMessage: Message = {
-                        role: 'action',
-                        content: action.description,
+                    // If this was an interactive command, transform the interactive message into action message
+                    // Otherwise, add a new action message
+                    setMessages(prev => {
+                        // Find if there's an interactive message for this action
+                        const interactiveIdx = prev.findIndex(
+                            m => m.role === 'interactive' &&
+                                 m.action?.command === action.command &&
+                                 m.action?.type === action.type
+                        );
+
+                        if (interactiveIdx !== -1) {
+                            // Transform the interactive message into an action message
+                            const updated = [...prev];
+                            updated[interactiveIdx] = {
+                                ...updated[interactiveIdx],
+                                role: 'action',
+                                content: action.description,
+                                result
+                            };
+                            // Resume "Thinking..." since AI will continue processing
+                            setIsProcessing(true);
+                            return updated;
+                        } else {
+                            // Add new action message
+                            return [...prev, {
+                                role: 'action',
+                                content: action.description,
+                                timestamp: new Date(),
+                                action,
+                                result
+                            }];
+                        }
+                    });
+                },
+                onInteractiveCommand: (action, hint) => {
+                    // Stop the "thinking" animation and show hint to user
+                    setIsProcessing(false);
+                    const interactiveMessage: Message = {
+                        role: 'interactive',
+                        content: hint,
                         timestamp: new Date(),
-                        action,
-                        result
+                        action  // Include the action so we can show the command
                     };
-                    setMessages(prev => [...prev, actionMessage]);
+                    setMessages(prev => [...prev, interactiveMessage]);
+                },
+                onIntermediateResponse: (intermediateResponse) => {
+                    // Show AI response immediately (before waiting for interactive command)
+                    intermediateResponseShown = true;
+                    lastIntermediateResponse = intermediateResponse;
+                    const assistantMessage: Message = {
+                        role: 'assistant',
+                        content: intermediateResponse,
+                        timestamp: new Date()
+                    };
+                    setMessages(prev => [...prev, assistantMessage]);
                 },
                 executeCommand: async (command: string) => {
                     // Execute command via the terminal's persistent shell
@@ -148,13 +198,16 @@ export const Application = () => {
                 }
             });
 
-            // Add assistant response
-            const assistantMessage: Message = {
-                role: 'assistant',
-                content: response,
-                timestamp: new Date()
-            };
-            setMessages(prev => [...prev, assistantMessage]);
+            // Only add final response if it's different from intermediate response
+            // or if no intermediate response was shown
+            if (!intermediateResponseShown || response !== lastIntermediateResponse) {
+                const assistantMessage: Message = {
+                    role: 'assistant',
+                    content: response,
+                    timestamp: new Date()
+                };
+                setMessages(prev => [...prev, assistantMessage]);
+            }
 
             // Update detected secrets list
             setDetectedSecrets(agent.getDetectedSecrets());
