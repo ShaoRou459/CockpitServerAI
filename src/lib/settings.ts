@@ -57,10 +57,10 @@ export const SAFETY_MODES: Record<SafetyMode, SafetyModeConfig> = {
 
 export interface Settings {
     // Provider settings
-    provider: 'openai' | 'gemini' | 'custom';
+    provider: 'openai' | 'gemini';
     apiKey: string;
     model: string;
-    baseUrl: string;
+    baseUrl: string;  // Optional: if empty, uses provider default
 
     // Behavior settings
     safetyMode: SafetyMode;
@@ -110,6 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export const PROVIDERS = {
     openai: {
         name: 'OpenAI',
+        description: 'OpenAI API or compatible endpoints (Ollama, Azure, etc.)',
         defaultBaseUrl: 'https://api.openai.com/v1',
         models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'o1-preview', 'o1-mini'],
         authHeader: 'Authorization',
@@ -119,21 +120,13 @@ export const PROVIDERS = {
     },
     gemini: {
         name: 'Google Gemini',
+        description: 'Google AI Studio Gemini models',
         defaultBaseUrl: 'https://generativelanguage.googleapis.com',
         models: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'],
         authHeader: null as string | null,
         authPrefix: '',
         endpoint: '/v1beta/models/{model}:generateContent',
         requestFormat: 'gemini' as const
-    },
-    custom: {
-        name: 'Custom (OpenAI-Compatible)',
-        defaultBaseUrl: '',
-        models: [] as string[],
-        authHeader: 'Authorization',
-        authPrefix: 'Bearer ',
-        endpoint: '/chat/completions',
-        requestFormat: 'openai' as const
     }
 };
 
