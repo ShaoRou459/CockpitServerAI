@@ -79,6 +79,9 @@ export interface Settings {
 
     // UI settings
     theme: 'light' | 'dark';
+
+    // Onboarding
+    onboardingComplete: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -103,7 +106,8 @@ export const DEFAULT_SETTINGS: Settings = {
 
     logCommands: true,
     debugMode: false,
-    theme: 'light'
+    theme: 'light',
+    onboardingComplete: false
 };
 
 // Provider presets
@@ -147,7 +151,15 @@ export async function loadSettings(): Promise<Settings> {
 
         if (content && typeof content === 'string') {
             const parsed = JSON.parse(content) as Partial<Settings>;
-            return { ...DEFAULT_SETTINGS, ...parsed };
+            // If settings file exists but doesn't have onboardingComplete field,
+            // assume it's a legacy config and onboarding was implicitly done
+            const settings: Settings = {
+                ...DEFAULT_SETTINGS,
+                ...parsed,
+                // Preserve onboardingComplete if set, otherwise assume complete for existing configs
+                onboardingComplete: parsed.onboardingComplete ?? true
+            };
+            return settings;
         }
     } catch (e) {
         // Config file doesn't exist yet, that's fine
@@ -159,7 +171,12 @@ export async function loadSettings(): Promise<Settings> {
         const stored = localStorage.getItem('cockpit-ai-agent-settings');
         if (stored) {
             const parsed = JSON.parse(stored) as Partial<Settings>;
-            const settings: Settings = { ...DEFAULT_SETTINGS, ...parsed };
+            // Migrated settings mean user already configured, so onboarding done
+            const settings: Settings = {
+                ...DEFAULT_SETTINGS,
+                ...parsed,
+                onboardingComplete: true
+            };
             // Migrate to server-side storage
             await saveSettings(settings);
             // Clear localStorage after migration
@@ -171,6 +188,7 @@ export async function loadSettings(): Promise<Settings> {
         console.error('Failed to migrate localStorage settings:', e);
     }
 
+    // No settings file exists - this is a truly new user, show onboarding
     return DEFAULT_SETTINGS;
 }
 

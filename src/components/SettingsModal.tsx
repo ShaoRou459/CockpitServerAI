@@ -78,13 +78,15 @@ interface SettingsModalProps {
     settings: Settings;
     onSave: (settings: Settings) => Promise<void>;
     onClose: () => void;
+    onRestartOnboarding?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
     isOpen,
     settings,
     onSave,
-    onClose
+    onClose,
+    onRestartOnboarding
 }) => {
     const [formData, setFormData] = useState<Settings>(settings);
     const [activePage, setActivePage] = useState<SettingsPage>('provider');
@@ -382,6 +384,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </HelperTextItem>
                 </HelperText>
             </FormGroup>
+
+            {onRestartOnboarding && (
+                <FormGroup fieldId="settings-restart-onboarding">
+                    <Button
+                        variant="secondary"
+                        onClick={() => {
+                            onClose();
+                            onRestartOnboarding();
+                        }}
+                    >
+                        {_("Restart Onboarding")}
+                    </Button>
+                    <HelperText>
+                        <HelperTextItem>
+                            {_("Re-run the setup wizard (for testing purposes)")}
+                        </HelperTextItem>
+                    </HelperText>
+                </FormGroup>
+            )}
         </Form>
     );
 

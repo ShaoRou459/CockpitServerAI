@@ -14,6 +14,7 @@ import { TerminalView, TerminalViewHandle } from './components/TerminalView';
 import { SettingsModal } from './components/SettingsModal';
 import { SecretsIndicator } from './components/SecretsIndicator';
 import { DebugPanel } from './components/DebugPanel';
+import { OnboardingModal } from './components/OnboardingModal';
 import { AgentController } from './lib/agent';
 import { loadSettings, saveSettings, Settings, DEFAULT_SETTINGS, SAFETY_MODES, RiskLevel } from './lib/settings';
 import { debugLogger } from './lib/debug-logger';
@@ -43,6 +44,7 @@ export const Application = () => {
     const [detectedSecrets, setDetectedSecrets] = useState<{ id: string; type: string; detectedAt: Date }[]>([]);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const [debugPanelOpen, setDebugPanelOpen] = useState(false);
+    const [onboardingOpen, setOnboardingOpen] = useState(false);
 
     // Terminal ref for sending commands
     const terminalRef = useRef<TerminalViewHandle>(null);
@@ -55,6 +57,10 @@ export const Application = () => {
         loadSettings().then(s => {
             setSettings(s);
             setSettingsLoaded(true);
+            // Show onboarding if not completed
+            if (!s.onboardingComplete) {
+                setOnboardingOpen(true);
+            }
         });
 
         const hostnameFile = cockpit.file('/etc/hostname');
@@ -265,6 +271,13 @@ export const Application = () => {
         setDetectedSecrets([]);
     }, [agent]);
 
+    // Handle onboarding completion
+    const handleOnboardingComplete = useCallback(async (newSettings: Settings) => {
+        await saveSettings(newSettings);
+        setSettings(newSettings);
+        setOnboardingOpen(false);
+    }, []);
+
     // Check if API is configured
     const isConfigured = Boolean(settings.apiKey && settings.provider);
 
@@ -375,6 +388,7 @@ export const Application = () => {
                 settings={settings}
                 onSave={handleSaveSettings}
                 onClose={() => setSettingsOpen(false)}
+                onRestartOnboarding={() => setOnboardingOpen(true)}
             />
 
             {/* Debug Panel */}
@@ -384,6 +398,13 @@ export const Application = () => {
                     onClose={() => setDebugPanelOpen(false)}
                 />
             )}
+
+            {/* Onboarding Modal */}
+            <OnboardingModal
+                isOpen={onboardingOpen}
+                initialSettings={settings}
+                onComplete={handleOnboardingComplete}
+            />
         </div>
     );
 };

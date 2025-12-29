@@ -3461,3 +3461,418 @@
         text-align: center;
     }
 }
+
+/* ========================================
+   ONBOARDING MODAL STYLES
+   ======================================== */
+
+/* Modal container overrides */
+.onboarding-modal .pf-v6-c-modal-box {
+    max-width: 700px;
+    width: 90vw;
+    background-color: var(--ai-panel-bg);
+    border: 1px solid var(--ai-border-color);
+    overflow: hidden;
+}
+
+.onboarding-modal .pf-v6-c-modal-box__body {
+    padding: 0;
+}
+
+.onboarding-modal__container {
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+    max-height: 80vh;
+}
+
+/* Simple header */
+.onboarding-modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background-color: var(--ai-panel-bg);
+    border-bottom: 1px solid var(--ai-border-color);
+}
+
+.onboarding-modal__step-indicator {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ai-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.onboarding-modal__skip {
+    font-size: 13px;
+    color: var(--ai-text-muted) !important;
+}
+
+/* Body */
+.onboarding-modal__body {
+    flex: 1;
+    padding: 32px 24px !important;
+    overflow-y: auto;
+    background-color: var(--ai-panel-bg);
+}
+
+/* Footer navigation */
+.onboarding-modal__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background-color: var(--ai-bg-color);
+    border-top: 1px solid var(--ai-border-color);
+}
+
+.onboarding-modal__footer-left,
+.onboarding-modal__footer-right {
+    display: flex;
+    gap: 8px;
+}
+
+/* Step content base styles */
+.onboarding-step {
+    animation: onboarding-fade-in 0.3s ease;
+}
+
+@keyframes onboarding-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.onboarding-step__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.onboarding-step__icon {
+    font-size: 32px;
+    color: var(--ai-primary-color);
+    flex-shrink: 0;
+}
+
+.onboarding-step__icon--warning {
+    color: #f0ab00;
+}
+
+.onboarding-step__title {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--ai-text-color);
+}
+
+.onboarding-step__description {
+    margin: 0;
+    font-size: 14px;
+    color: var(--ai-text-muted);
+    line-height: 1.5;
+}
+
+/* Welcome Step Styles */
+.onboarding-welcome__hero {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.onboarding-welcome__icon {
+    font-size: 64px;
+    color: var(--ai-primary-color);
+    margin-bottom: 16px;
+}
+
+.onboarding-welcome__title {
+    margin: 0 0 8px 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ai-text-color);
+}
+
+.onboarding-welcome__subtitle {
+    margin: 0;
+    font-size: 16px;
+    color: var(--ai-text-muted);
+}
+
+.onboarding-welcome__features {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.onboarding-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+    background-color: var(--ai-bg-color);
+    border-radius: 8px;
+    border: 1px solid var(--ai-border-color);
+}
+
+.onboarding-feature__icon {
+    font-size: 24px;
+    flex-shrink: 0;
+    color: var(--ai-primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.onboarding-feature__content h4 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ai-text-color);
+}
+
+.onboarding-feature__content p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ai-text-muted);
+}
+
+.onboarding-welcome__cta {
+    text-align: center;
+    margin: 0;
+    font-size: 15px;
+    color: var(--ai-text-color);
+    font-weight: 500;
+}
+
+/* Provider Step Styles */
+.onboarding-form {
+    max-width: 500px;
+}
+
+.onboarding-form .pf-v6-c-form__group {
+    margin-bottom: 12px;
+}
+
+.onboarding-form a {
+    color: var(--ai-primary-color);
+    text-decoration: none;
+}
+
+.onboarding-form a:hover {
+    text-decoration: underline;
+}
+
+/* Safety Step Styles */
+.onboarding-safety__grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.onboarding-safety__option {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    border: 2px solid var(--ai-border-color);
+    border-radius: 8px;
+    background-color: var(--ai-panel-bg);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.onboarding-safety__option:hover {
+    border-color: var(--ai-primary-color);
+    background-color: var(--ai-hover-bg);
+}
+
+.onboarding-safety__option:focus {
+    outline: 2px solid var(--ai-primary-color);
+    outline-offset: 2px;
+}
+
+.onboarding-safety__option--selected {
+    border-color: var(--ai-primary-color);
+    background-color: rgba(0, 102, 204, 0.08);
+}
+
+.onboarding-safety__option--danger.onboarding-safety__option--selected {
+    border-color: var(--ai-danger-color);
+    background-color: rgba(201, 25, 11, 0.08);
+}
+
+.onboarding-safety__option-icon {
+    font-size: 24px;
+    color: var(--ai-text-muted);
+    flex-shrink: 0;
+    width: 32px;
+    text-align: center;
+}
+
+.onboarding-safety__option--selected .onboarding-safety__option-icon {
+    color: var(--ai-primary-color);
+}
+
+.onboarding-safety__option--danger.onboarding-safety__option--selected .onboarding-safety__option-icon {
+    color: var(--ai-danger-color);
+}
+
+.onboarding-safety__option-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.onboarding-safety__option-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ai-text-color);
+}
+
+.onboarding-safety__option-desc {
+    font-size: 12px;
+    color: var(--ai-text-muted);
+}
+
+.onboarding-safety__recommendation {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background-color: rgba(0, 102, 204, 0.08);
+    border-radius: 6px;
+    margin-top: 16px;
+    border: 1px solid rgba(0, 102, 204, 0.2);
+}
+
+.onboarding-safety__recommendation-icon {
+    font-size: 16px;
+    color: var(--ai-primary-color);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.onboarding-safety__recommendation span {
+    font-size: 13px;
+    color: var(--ai-text-color);
+    line-height: 1.5;
+}
+
+.onboarding-safety__recommendation strong {
+    color: var(--ai-primary-color);
+}
+
+/* Disclaimer Step Styles */
+.onboarding-disclaimer__content {
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 16px;
+    background-color: var(--ai-bg-color);
+    border: 1px solid var(--ai-border-color);
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.onboarding-disclaimer__section {
+    margin-bottom: 16px;
+}
+
+.onboarding-disclaimer__section:last-child {
+    margin-bottom: 0;
+}
+
+.onboarding-disclaimer__section h4 {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ai-text-color);
+}
+
+.onboarding-disclaimer__section p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ai-text-muted);
+    line-height: 1.6;
+}
+
+.onboarding-disclaimer__accept {
+    padding: 16px;
+    background-color: var(--ai-bg-color);
+    border: 1px solid var(--ai-border-color);
+    border-radius: 6px;
+}
+
+.onboarding-disclaimer__accept .pf-v6-c-check__label {
+    font-size: 13px;
+    color: var(--ai-text-color);
+    line-height: 1.5;
+}
+
+/* Responsive Onboarding */
+@media (max-width: 600px) {
+    .onboarding-modal .pf-v6-c-modal-box {
+        width: 95vw;
+        max-height: 90vh;
+    }
+
+    .onboarding-modal__container {
+        min-height: auto;
+    }
+
+    .onboarding-modal__header {
+        padding: 16px;
+    }
+
+    .onboarding-modal__steps {
+        flex-wrap: wrap;
+    }
+
+    .onboarding-modal__step {
+        padding: 6px 10px;
+    }
+
+    .onboarding-modal__body {
+        padding: 24px 16px !important;
+    }
+
+    .onboarding-modal__footer {
+        padding: 12px 16px;
+    }
+
+    .onboarding-welcome__icon {
+        font-size: 48px;
+    }
+
+    .onboarding-welcome__title {
+        font-size: 22px;
+    }
+
+    .onboarding-step__header {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .onboarding-step__icon {
+        align-self: center;
+    }
+
+    .onboarding-safety__option {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .onboarding-disclaimer__content {
+        max-height: 180px;
+    }
+}
