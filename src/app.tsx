@@ -6,15 +6,17 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Flex, FlexItem, Button } from "@patternfly/react-core";
-import { CogIcon, RocketIcon, LockIcon, ShieldAltIcon, BoltIcon, SkullIcon, MoonIcon, SunIcon } from "@patternfly/react-icons";
+import { CogIcon, RocketIcon, LockIcon, ShieldAltIcon, BoltIcon, SkullIcon, MoonIcon, SunIcon, BugIcon } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 
 import { ChatPanel } from './components/ChatPanel';
 import { TerminalView, TerminalViewHandle } from './components/TerminalView';
 import { SettingsModal } from './components/SettingsModal';
 import { SecretsIndicator } from './components/SecretsIndicator';
+import { DebugPanel } from './components/DebugPanel';
 import { AgentController } from './lib/agent';
 import { loadSettings, saveSettings, Settings, DEFAULT_SETTINGS, SAFETY_MODES, RiskLevel } from './lib/settings';
+import { debugLogger } from './lib/debug-logger';
 
 import type { Message, PendingAction } from './lib/types';
 
@@ -40,6 +42,7 @@ export const Application = () => {
     const [terminalReady, setTerminalReady] = useState(false);
     const [detectedSecrets, setDetectedSecrets] = useState<{ id: string; type: string; detectedAt: Date }[]>([]);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
+    const [debugPanelOpen, setDebugPanelOpen] = useState(false);
 
     // Terminal ref for sending commands
     const terminalRef = useRef<TerminalViewHandle>(null);
@@ -62,6 +65,9 @@ export const Application = () => {
     // Update agent and theme when settings change
     useEffect(() => {
         agent.updateSettings(settings);
+
+        // Sync debug logger with settings
+        debugLogger.setEnabled(settings.debugMode);
 
         // Apply theme to document element for PatternFly and CSS variables
         if (settings.theme === 'dark') {
@@ -139,8 +145,8 @@ export const Application = () => {
                         // Find if there's an interactive message for this action
                         const interactiveIdx = prev.findIndex(
                             m => m.role === 'interactive' &&
-                                 m.action?.command === action.command &&
-                                 m.action?.type === action.type
+                                m.action?.command === action.command &&
+                                m.action?.type === action.type
                         );
 
                         if (interactiveIdx !== -1) {
@@ -301,6 +307,18 @@ export const Application = () => {
                                     isEnabled={settings.secretRedaction}
                                 />
                             </FlexItem>
+                            {settings.debugMode && (
+                                <FlexItem>
+                                    <Button
+                                        variant="plain"
+                                        aria-label="Toggle Debug Panel"
+                                        onClick={() => setDebugPanelOpen(!debugPanelOpen)}
+                                        className={`debug-toggle-btn ${debugPanelOpen ? 'debug-toggle-btn--active' : ''}`}
+                                    >
+                                        <BugIcon />
+                                    </Button>
+                                </FlexItem>
+                            )}
                             <FlexItem>
                                 <Button
                                     variant="plain"
@@ -358,6 +376,14 @@ export const Application = () => {
                 onSave={handleSaveSettings}
                 onClose={() => setSettingsOpen(false)}
             />
+
+            {/* Debug Panel */}
+            {settings.debugMode && (
+                <DebugPanel
+                    isOpen={debugPanelOpen}
+                    onClose={() => setDebugPanelOpen(false)}
+                />
+            )}
         </div>
     );
 };

@@ -11,6 +11,7 @@ import cockpit from 'cockpit';
 import { AIClient, ChatMessage } from './ai-client';
 import { Settings, DEFAULT_SETTINGS } from './settings';
 import { secretManager } from './secrets';
+import { debugLogger } from './debug-logger';
 import type { Action, AIResponse, SystemContext, CommandResult } from './types';
 
 // Callback types
@@ -50,6 +51,8 @@ export class AgentController {
         this.aiClient.updateSettings(settings);
         // Sync secret redaction setting
         secretManager.setEnabled(settings.secretRedaction);
+        // Sync debug logger setting
+        debugLogger.setEnabled(settings.debugMode);
     }
 
     async processMessage(userMessage: string, options: ProcessOptions): Promise<string> {
@@ -157,8 +160,12 @@ export class AgentController {
         const results: { action: Action; result: CommandResult }[] = [];
 
         for (const action of actions) {
+            // Log action request
+            debugLogger.logAction(action, 'requested');
+
             // Check blocklist
             if (this.isBlocked(action)) {
+                debugLogger.logAction(action, 'blocked');
                 onOutput(`\n⛔ Blocked: "${action.command}" matches blocklist pattern\n`);
                 continue;
             }
@@ -167,9 +174,12 @@ export class AgentController {
             const approved = await onAction(action);
 
             if (!approved) {
+                debugLogger.logAction(action, 'denied');
                 onOutput(`\n❌ Denied: ${action.description}\n`);
                 continue;
             }
+
+            debugLogger.logAction(action, 'approved');
 
             // Notify about interactive command BEFORE executing
             if (action.interactive && onInteractiveCommand) {
@@ -180,6 +190,9 @@ export class AgentController {
             // Execute the action
             const result = await this.executeAction(action, onOutput, executeCommand);
             results.push({ action, result });
+
+            // Log execution result
+            debugLogger.logAction(action, 'executed', result);
 
             // Notify about executed action
             if (onActionExecuted) {

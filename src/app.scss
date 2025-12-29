@@ -1008,8 +1008,15 @@
 }
 
 @keyframes pulseGlow {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(240, 171, 0, 0); }
-    50% { box-shadow: 0 0 8px 2px rgba(240, 171, 0, 0.3); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(240, 171, 0, 0);
+    }
+
+    50% {
+        box-shadow: 0 0 8px 2px rgba(240, 171, 0, 0.3);
+    }
 }
 
 .approval-compact.risk-low {
@@ -1017,8 +1024,15 @@
 }
 
 @keyframes pulseGlowGreen {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(62, 134, 53, 0); }
-    50% { box-shadow: 0 0 8px 2px rgba(62, 134, 53, 0.3); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(62, 134, 53, 0);
+    }
+
+    50% {
+        box-shadow: 0 0 8px 2px rgba(62, 134, 53, 0.3);
+    }
 }
 
 .approval-compact.risk-high,
@@ -1027,8 +1041,15 @@
 }
 
 @keyframes pulseGlowRed {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(201, 25, 11, 0); }
-    50% { box-shadow: 0 0 8px 2px rgba(201, 25, 11, 0.3); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(201, 25, 11, 0);
+    }
+
+    50% {
+        box-shadow: 0 0 8px 2px rgba(201, 25, 11, 0.3);
+    }
 }
 
 .approval-compact-header {
@@ -1874,5 +1895,266 @@
         &::placeholder {
             color: #aaa;
         }
+    }
+}
+
+/* ========================================
+   DEBUG PANEL STYLES
+   ======================================== */
+
+.debug-panel {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    width: 600px;
+    max-width: calc(100vw - 32px);
+    max-height: 500px;
+    background-color: #1b1d21;
+    border: 1px solid #3d3d3d;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    font-family: 'RedHatMono', 'Liberation Mono', monospace;
+    font-size: 12px;
+    color: #e0e0e0;
+    overflow: hidden;
+}
+
+.debug-panel__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: #212427;
+    border-bottom: 1px solid #3d3d3d;
+    cursor: move;
+}
+
+.debug-panel__icon {
+    color: #8a4fff;
+    font-size: 14px;
+}
+
+.debug-panel__title {
+    font-weight: 600;
+    font-size: 13px;
+    color: #fff;
+}
+
+.debug-panel__count {
+    background-color: #3d3d3d !important;
+    color: #aaa !important;
+    font-size: 11px !important;
+}
+
+.debug-panel__btn {
+    color: #8a8d90 !important;
+    padding: 4px !important;
+
+    &:hover {
+        color: #fff !important;
+    }
+}
+
+.debug-panel__btn--danger:hover {
+    color: #f54f47 !important;
+}
+
+.debug-panel__filters {
+    padding: 8px 12px;
+    background-color: #212427;
+    border-bottom: 1px solid #3d3d3d;
+}
+
+.debug-panel__select {
+    background-color: #2c2f33 !important;
+    border-color: #3d3d3d !important;
+    color: #e0e0e0 !important;
+    font-size: 11px !important;
+    min-width: 120px;
+}
+
+.debug-panel__paused-badge {
+    background-color: #f0ab00 !important;
+    color: #000 !important;
+    font-size: 10px !important;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.debug-panel__logs {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 150px;
+    max-height: 400px;
+    background-color: #151515;
+}
+
+.debug-panel__logs::-webkit-scrollbar {
+    width: 8px;
+}
+
+.debug-panel__logs::-webkit-scrollbar-track {
+    background: #151515;
+}
+
+.debug-panel__logs::-webkit-scrollbar-thumb {
+    background-color: #3c3c3c;
+    border-radius: 4px;
+}
+
+.debug-panel__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    color: #6a6e73;
+    text-align: center;
+}
+
+.debug-panel__empty-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+.debug-panel__empty-hint {
+    font-size: 11px;
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+/* Debug Entry Rows */
+.debug-entry {
+    border-bottom: 1px solid #2c2f33;
+
+    &:last-child {
+        border-bottom: none;
+    }
+}
+
+.debug-entry--error {
+    background-color: rgba(201, 25, 11, 0.1) !important;
+}
+
+.debug-entry--warn {
+    background-color: rgba(240, 171, 0, 0.05) !important;
+}
+
+.debug-entry__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    font-size: 12px;
+    color: inherit;
+    transition: background-color 0.1s ease;
+
+    &:hover:not(:disabled) {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    &:disabled {
+        cursor: default;
+    }
+}
+
+.debug-entry__expand {
+    width: 14px;
+    flex-shrink: 0;
+    color: #6a6e73;
+    font-size: 10px;
+}
+
+.debug-entry__time {
+    color: #6a6e73;
+    font-size: 11px;
+    flex-shrink: 0;
+    min-width: 85px;
+}
+
+.debug-entry__category {
+    font-weight: 600;
+    font-size: 10px;
+    flex-shrink: 0;
+    min-width: 65px;
+}
+
+.debug-entry__title {
+    font-weight: 500;
+    flex-shrink: 0;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.debug-entry__message {
+    color: #aaa;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.debug-entry__duration {
+    color: #8a4fff;
+    font-size: 10px;
+    flex-shrink: 0;
+    padding: 1px 6px;
+    background-color: rgba(138, 79, 255, 0.15);
+    border-radius: 3px;
+}
+
+.debug-entry__data {
+    padding: 8px 12px 12px 34px;
+    background-color: rgba(0, 0, 0, 0.3);
+    border-top: 1px solid #2c2f33;
+
+    pre {
+        margin: 0;
+        font-size: 11px;
+        color: #aaa;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+}
+
+/* Debug toggle button in header */
+.debug-toggle-btn {
+    color: var(--ai-text-muted) !important;
+
+    &:hover {
+        color: var(--ai-text-color) !important;
+    }
+}
+
+.debug-toggle-btn--active {
+    color: #8a4fff !important;
+
+    &:hover {
+        color: #a06fff !important;
     }
 }

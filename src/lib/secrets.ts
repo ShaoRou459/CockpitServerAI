@@ -7,6 +7,8 @@
  * 3. Secure storage and substitution when executing commands
  */
 
+import { debugLogger } from './debug-logger';
+
 // Secret patterns to detect
 interface SecretPattern {
     name: string;
@@ -201,6 +203,9 @@ export class SecretManager {
                         detectedAt: new Date(),
                         context
                     });
+
+                    // Log the detection (without the actual value!)
+                    debugLogger.logSecretDetection(secretId, pattern.name, context || 'unknown');
                 }
 
                 // Replace in text

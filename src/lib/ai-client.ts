@@ -9,6 +9,7 @@
 import cockpit from 'cockpit';
 import { Settings, PROVIDERS } from './settings';
 import type { AIResponse } from './types';
+import { debugLogger } from './debug-logger';
 
 export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
@@ -105,6 +106,7 @@ export class AIClient {
         providerConfig: typeof PROVIDERS.openai
     ): Promise<AIResponse> {
         const url = `${baseUrl}${providerConfig.endpoint}`;
+        const startTime = Date.now();
 
         const requestMessages = [
             { role: 'system', content: systemPrompt },
@@ -126,13 +128,27 @@ export class AIClient {
             max_tokens: this.settings.maxTokens,
         });
 
+        // Log the request
+        debugLogger.logRequest('OpenAI', url, {
+            model,
+            messageCount: requestMessages.length,
+            temperature: this.settings.temperature,
+            maxTokens: this.settings.maxTokens,
+        });
+
         const response = await httpRequest(url, 'POST', headers, body);
+        const duration = Date.now() - startTime;
+
+        // Log the response
+        debugLogger.logResponse('OpenAI', response.status, response.body, duration);
 
         if (response.error) {
+            debugLogger.logError('OpenAI Request', response.error);
             throw new Error(response.error);
         }
 
         if (response.status !== 200) {
+            debugLogger.logError('OpenAI API', `Status ${response.status}`, { body: response.body });
             throw new Error(`API request failed: ${response.status} - ${response.body}`);
         }
 
@@ -140,6 +156,7 @@ export class AIClient {
         const content = data.choices?.[0]?.message?.content;
 
         if (!content) {
+            debugLogger.logError('OpenAI Response', 'Empty content in response');
             throw new Error('Empty response from API');
         }
 
@@ -155,6 +172,7 @@ export class AIClient {
     ): Promise<AIResponse> {
         const endpoint = PROVIDERS.gemini.endpoint.replace('{model}', model);
         const url = `${baseUrl}${endpoint}?key=${apiKey}`;
+        const startTime = Date.now();
 
         // Convert to Gemini format
         const contents = messages.map(m => ({
@@ -177,13 +195,27 @@ export class AIClient {
             'Content-Type': 'application/json',
         };
 
+        // Log the request
+        debugLogger.logRequest('Gemini', url.replace(/key=[^&]+/, 'key=***'), {
+            model,
+            messageCount: contents.length,
+            temperature: this.settings.temperature,
+            maxTokens: this.settings.maxTokens,
+        });
+
         const response = await httpRequest(url, 'POST', headers, body);
+        const duration = Date.now() - startTime;
+
+        // Log the response
+        debugLogger.logResponse('Gemini', response.status, response.body, duration);
 
         if (response.error) {
+            debugLogger.logError('Gemini Request', response.error);
             throw new Error(response.error);
         }
 
         if (response.status !== 200) {
+            debugLogger.logError('Gemini API', `Status ${response.status}`, { body: response.body });
             throw new Error(`Gemini API request failed: ${response.status} - ${response.body}`);
         }
 
@@ -191,6 +223,7 @@ export class AIClient {
         const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!content) {
+            debugLogger.logError('Gemini Response', 'Empty content in response');
             throw new Error('Empty response from Gemini API');
         }
 
@@ -206,6 +239,7 @@ export class AIClient {
         const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (jsonMatch) {
             jsonStr = jsonMatch[1].trim();
+            debugLogger.log('debug', 'ai-parse', 'Extracted JSON', 'Found JSON in markdown code block');
         }
 
         try {
@@ -213,18 +247,29 @@ export class AIClient {
 
             // Validate the response structure
             if (!parsed.response) {
+                debugLogger.log('warn', 'ai-parse', 'Parse Warning', 'Response missing "response" field', { parsed });
                 throw new Error('Response missing required "response" field');
             }
 
-            return {
+            const result: AIResponse = {
                 thought: parsed.thought || '',
                 actions: Array.isArray(parsed.actions) ? parsed.actions : [],
                 response: parsed.response
             };
+
+            // Log successful parse with details
+            debugLogger.logParsing(content, result, true);
+
+            return result;
         } catch (parseError) {
             // If we can't parse JSON, treat the whole thing as a text response
             // This is a fallback for when the AI doesn't follow the format
-            console.warn('Failed to parse AI response as JSON, using as plain text:', parseError);
+            debugLogger.logParsing(content, null, false);
+            debugLogger.log('warn', 'ai-parse', 'JSON Parse Failed',
+                parseError instanceof Error ? parseError.message : 'Unknown error',
+                { rawContent: content.substring(0, 500) }
+            );
+
             return {
                 thought: '',
                 actions: [],
