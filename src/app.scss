@@ -189,6 +189,15 @@
     padding: 0;
 }
 
+/* Override PatternFly form gap - more specific selector */
+.settings-page-form.pf-v6-c-form,
+form.settings-page-form {
+    gap: 12px !important;
+    --pf-v6-c-form--m-horizontal--GridGap: 12px;
+    --pf-v6-c-form--GridGap: 12px;
+    row-gap: 12px !important;
+}
+
 /* ========================================
    SETTINGS MODAL - Multi-page Layout
    ======================================== */
@@ -392,11 +401,30 @@
 }
 
 .settings-page-form .pf-v6-c-form__group {
-    margin-bottom: 20px;
+    margin-bottom: 0;
+    margin-top: 0;
+    /* Override PatternFly form group spacing variables */
+    --pf-v6-c-form__group--MarginTop: 0;
+    --pf-v6-c-form__group--m-action--MarginTop: 0;
 }
 
-.settings-page-form .pf-v6-c-form__group:last-child {
-    margin-bottom: 0;
+/* Reduce helper text spacing */
+.settings-page-form .pf-v6-c-helper-text {
+    margin-top: 4px;
+    --pf-v6-c-helper-text--MarginTop: 4px;
+}
+
+/* Reduce form group label spacing */
+.settings-page-form .pf-v6-c-form__label {
+    margin-bottom: 4px;
+    padding-bottom: 0;
+    --pf-v6-c-form__label--MarginBottom: 4px;
+}
+
+/* Override PatternFly stack spacing in settings forms */
+.settings-page-form .pf-v6-c-form__group-control {
+    --pf-v6-c-form__group-control--m-stack--Gap: 4px;
+    gap: 4px;
 }
 
 /* Blocklist in page view */
@@ -3112,19 +3140,10 @@
 }
 
 .about-logo {
-    width: 56px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #0066cc, #004080);
-    border-radius: 12px;
+    font-size: 48px;
+    color: var(--ai-primary-color);
 }
 
-.about-logo__icon {
-    font-size: 28px;
-    color: #fff;
-}
 
 .about-title {
     display: flex;
