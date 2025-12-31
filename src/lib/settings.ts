@@ -66,6 +66,7 @@ export interface Settings {
     safetyMode: SafetyMode;
     maxTokens: number;
     temperature: number;
+    outputTruncateLength: number;  // Max chars of command output to send to AI
 
     // Safety settings
     commandBlocklist: string[];
@@ -93,6 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
     safetyMode: 'cautious',
     maxTokens: 4096,
     temperature: 0.7,
+    outputTruncateLength: 8000,
 
     commandBlocklist: [
         'rm -rf /',

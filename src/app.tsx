@@ -252,6 +252,11 @@ export const Application = () => {
         pendingAction?.onDeny();
     }, [pendingAction]);
 
+    // Handle stop processing
+    const handleStop = useCallback(() => {
+        setIsProcessing(false);
+    }, []);
+
     // Clear terminal
     const handleClearTerminal = useCallback(() => {
         if (terminalRef.current) {
@@ -370,6 +375,7 @@ export const Application = () => {
                         pendingAction={pendingAction}
                         onApprove={handleApprove}
                         onDeny={handleDeny}
+                        onStop={handleStop}
                     />
                 </div>
 

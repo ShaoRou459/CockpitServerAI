@@ -406,12 +406,13 @@ export class AgentController {
     }
 
     private formatResultsForAI(results: { action: Action; result: CommandResult }[]): string {
+        const maxLength = this.settings.outputTruncateLength || 8000;
         const parts = results.map(({ action, result }) => {
             const status = result.success ? 'SUCCESS' : 'FAILED';
-            // Truncate very long outputs
+            // Truncate very long outputs based on settings
             let output = result.stdout;
-            if (output.length > 2000) {
-                output = output.substring(0, 2000) + '\n...(truncated)';
+            if (output.length > maxLength) {
+                output = output.substring(0, maxLength) + `\n...(truncated ${output.length - maxLength} chars)`;
             }
             return `[${status}] ${action.description}
 Command: ${action.command || action.type}

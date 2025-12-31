@@ -1997,16 +1997,52 @@ form.settings-page-form {
     color: var(--ai-text-muted);
 }
 
+/* Chat input form container */
+.chat-input-form {
+    width: 100%;
+}
+
+.chat-input-container {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.chat-input-container .pf-v6-c-form-control {
+    flex: 1;
+    min-height: 60px;
+}
+
+.chat-input-container .chat-action-button {
+    flex-shrink: 0;
+    width: 48px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px !important;
+}
+
 /* Send button - Cockpit style */
 .ai-agent-chat .pf-v6-c-button.pf-m-primary {
     background-color: var(--ai-primary-color) !important;
     border: 1px solid var(--ai-primary-color) !important;
-    border-radius: 4px !important;
 }
 
 .ai-agent-chat .pf-v6-c-button.pf-m-primary:hover {
     background-color: #004080 !important;
     border-color: #004080 !important;
+}
+
+/* Stop button - danger style */
+.ai-agent-chat .pf-v6-c-button.pf-m-danger {
+    background-color: #c9190b !important;
+    border: 1px solid #c9190b !important;
+}
+
+.ai-agent-chat .pf-v6-c-button.pf-m-danger:hover {
+    background-color: #a30000 !important;
+    border-color: #a30000 !important;
 }
 
 /* ========================================

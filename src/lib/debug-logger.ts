@@ -132,7 +132,7 @@ class DebugLogger {
         const level: LogLevel = status >= 400 ? 'error' : 'info';
         this.log(level, 'api-response', `API Response ← ${provider}`, `Status: ${status}`, {
             status,
-            body: this.truncateString(body, 2000),
+            body: this.truncateString(body, 50000),
             duration: `${duration}ms`
         }, duration);
     }
@@ -147,7 +147,7 @@ class DebugLogger {
             success ? 'AI Response Parsed' : 'AI Parse Failed (Fallback)',
             success ? 'Successfully parsed JSON response' : 'Failed to parse as JSON, using raw text',
             {
-                raw: this.truncateString(rawContent, 1000),
+                raw: this.truncateString(rawContent, 50000),
                 parsed
             }
         );

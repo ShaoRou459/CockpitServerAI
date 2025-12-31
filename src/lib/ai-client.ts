@@ -128,12 +128,12 @@ export class AIClient {
             max_tokens: this.settings.maxTokens,
         });
 
-        // Log the request
+        // Log the full request
         debugLogger.logRequest('OpenAI', url, {
             model,
-            messageCount: requestMessages.length,
             temperature: this.settings.temperature,
             maxTokens: this.settings.maxTokens,
+            messages: requestMessages,
         });
 
         const response = await httpRequest(url, 'POST', headers, body);
@@ -195,12 +195,13 @@ export class AIClient {
             'Content-Type': 'application/json',
         };
 
-        // Log the request
+        // Log the full request
         debugLogger.logRequest('Gemini', url.replace(/key=[^&]+/, 'key=***'), {
             model,
-            messageCount: contents.length,
             temperature: this.settings.temperature,
             maxTokens: this.settings.maxTokens,
+            systemInstruction: systemPrompt,
+            contents: contents,
         });
 
         const response = await httpRequest(url, 'POST', headers, body);

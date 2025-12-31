@@ -32,6 +32,7 @@ import {
     FileCodeIcon,
     AngleRightIcon,
     AngleDownIcon,
+    StopCircleIcon,
 } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 import { marked } from 'marked';
@@ -55,6 +56,7 @@ interface ChatPanelProps {
     pendingAction: PendingAction | null;
     onApprove: () => void;
     onDeny: () => void;
+    onStop?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -65,7 +67,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     onOpenSettings,
     pendingAction,
     onApprove,
-    onDeny
+    onDeny,
+    onStop
 }) => {
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -77,9 +80,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     const handleSubmit = (e?: React.FormEvent) => {
         e?.preventDefault();
-        if (input.trim() && !isProcessing && isConfigured) {
+        if (input.trim() && isConfigured && !isProcessing) {
             onSendMessage(input.trim());
             setInput('');
+        }
+    };
+
+    const handleStop = () => {
+        if (onStop) {
+            onStop();
         }
     };
 
@@ -153,31 +162,40 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
             {/* Input Area */}
             <CardFooter>
-                <form onSubmit={handleSubmit}>
-                    <Flex>
-                        <FlexItem grow={{ default: 'grow' }}>
-                            <TextArea
-                                value={input}
-                                onChange={(_e, value) => setInput(value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder={_("Ask me to help manage this server...")}
-                                aria-label="Message input"
-                                rows={2}
-                                resizeOrientation="vertical"
-                                isDisabled={isProcessing || !!pendingAction}
-                            />
-                        </FlexItem>
-                        <FlexItem alignSelf={{ default: 'alignSelfFlexEnd' }}>
+                <form onSubmit={handleSubmit} className="chat-input-form">
+                    <div className="chat-input-container">
+                        <TextArea
+                            value={input}
+                            onChange={(_e, value) => setInput(value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder={_("Ask me to help manage this server...")}
+                            aria-label="Message input"
+                            rows={2}
+                            resizeOrientation="vertical"
+                            isDisabled={!!pendingAction}
+                        />
+                        {isProcessing ? (
+                            <Button
+                                type="button"
+                                variant="danger"
+                                onClick={handleStop}
+                                aria-label="Stop response"
+                                className="chat-action-button"
+                            >
+                                <StopCircleIcon />
+                            </Button>
+                        ) : (
                             <Button
                                 type="submit"
                                 variant="primary"
-                                isDisabled={!input.trim() || isProcessing || !!pendingAction}
+                                isDisabled={!input.trim() || !!pendingAction}
                                 aria-label="Send message"
+                                className="chat-action-button"
                             >
                                 <PaperPlaneIcon />
                             </Button>
-                        </FlexItem>
-                    </Flex>
+                        )}
+                    </div>
                 </form>
             </CardFooter>
         </Card>

@@ -311,6 +311,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <HelperTextItem>{_("Maximum length of AI responses")}</HelperTextItem>
                 </HelperText>
             </FormGroup>
+
+            <FormGroup label={_("Output Truncate Length")} fieldId="settings-output-truncate">
+                <Split hasGutter>
+                    <SplitItem isFilled>
+                        <input
+                            type="range"
+                            id="settings-output-truncate-slider"
+                            min={1000}
+                            max={50000}
+                            step={1000}
+                            value={formData.outputTruncateLength}
+                            onChange={(e) => updateField('outputTruncateLength', parseInt(e.target.value))}
+                            className="settings-slider"
+                        />
+                    </SplitItem>
+                    <SplitItem>
+                        <span className="settings-slider-value">{(formData.outputTruncateLength / 1000).toFixed(0)}k</span>
+                    </SplitItem>
+                </Split>
+                <HelperText>
+                    <HelperTextItem>
+                        {_("Max characters of command output sent to AI (higher = more context, more tokens)")}
+                    </HelperTextItem>
+                </HelperText>
+            </FormGroup>
         </Form>
     );
 
