@@ -5,8 +5,8 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Flex, FlexItem, Button } from "@patternfly/react-core";
-import { CogIcon, RocketIcon, LockIcon, ShieldAltIcon, BoltIcon, SkullIcon, MoonIcon, SunIcon, BugIcon } from "@patternfly/react-icons";
+import { Flex, FlexItem, Button, Tooltip } from "@patternfly/react-core";
+import { CogIcon, RocketIcon, LockIcon, ShieldAltIcon, BoltIcon, SkullIcon, MoonIcon, SunIcon, BugIcon, TerminalIcon, ColumnsIcon, HistoryIcon } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 
 import { ChatPanel } from './components/ChatPanel';
@@ -15,11 +15,22 @@ import { SettingsModal } from './components/SettingsModal';
 import { SecretsIndicator } from './components/SecretsIndicator';
 import { DebugPanel } from './components/DebugPanel';
 import { OnboardingModal } from './components/OnboardingModal';
+import { ErrorModal } from './components/ErrorModal';
+import type { ApiError } from './components/ErrorModal';
+import { SessionDrawer } from './components/SessionDrawer';
 import { AgentController } from './lib/agent';
+import { ApiRetryError } from './lib/ai-client';
 import { loadSettings, saveSettings, Settings, DEFAULT_SETTINGS, SAFETY_MODES, RiskLevel } from './lib/settings';
 import { debugLogger } from './lib/debug-logger';
+import {
+    loadSessionList,
+    loadSession,
+    saveSession,
+    deleteSession,
+    createSession,
+} from './lib/sessions';
 
-import type { Message, PendingAction } from './lib/types';
+import type { Message, PendingAction, ChatSession, SessionMetadata } from './lib/types';
 
 const _ = cockpit.gettext;
 
@@ -45,9 +56,22 @@ export const Application = () => {
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const [debugPanelOpen, setDebugPanelOpen] = useState(false);
     const [onboardingOpen, setOnboardingOpen] = useState(false);
+    const [apiError, setApiError] = useState<ApiError | null>(null);
+    const [errorModalOpen, setErrorModalOpen] = useState(false);
+    const [lastUserMessage, setLastUserMessage] = useState<string>('');
+    const [terminalVisible, setTerminalVisible] = useState(true);
+    const [chatPanelWidth, setChatPanelWidth] = useState(50); // percentage
+    const [isResizing, setIsResizing] = useState(false);
+
+    // Session state
+    const [sessions, setSessions] = useState<SessionMetadata[]>([]);
+    const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [sessionSaveTimeout, setSessionSaveTimeout] = useState<NodeJS.Timeout | null>(null);
 
     // Terminal ref for sending commands
     const terminalRef = useRef<TerminalViewHandle>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
 
     // Initialize agent controller
     const [agent] = useState(() => new AgentController());
@@ -65,8 +89,70 @@ export const Application = () => {
 
         const hostnameFile = cockpit.file('/etc/hostname');
         hostnameFile.watch(content => setHostname((content as string)?.trim() ?? 'unknown'));
+
+        // Load sessions and create/restore current session
+        loadSessionList().then(sessionList => {
+            setSessions(sessionList);
+            if (sessionList.length > 0) {
+                // Load the most recent session
+                loadSession(sessionList[0].id).then(session => {
+                    if (session) {
+                        setCurrentSession(session);
+                        // Restore messages, converting date strings back to Date objects
+                        setMessages(session.messages.map(m => ({
+                            ...m,
+                            timestamp: new Date(m.timestamp)
+                        })));
+                    } else {
+                        // Session file was corrupted, create new
+                        const newSession = createSession();
+                        setCurrentSession(newSession);
+                    }
+                });
+            } else {
+                // No sessions exist, create a new one
+                const newSession = createSession();
+                setCurrentSession(newSession);
+            }
+        });
+
         return () => hostnameFile.close();
     }, []);
+
+    // Auto-save session when messages change (debounced)
+    useEffect(() => {
+        if (!currentSession || messages.length === 0) return;
+
+        // Clear existing timeout
+        if (sessionSaveTimeout) {
+            clearTimeout(sessionSaveTimeout);
+        }
+
+        // Debounce save by 1 second
+        const timeout = setTimeout(() => {
+            const updatedSession: ChatSession = {
+                ...currentSession,
+                messages: messages.map(m => ({
+                    ...m,
+                    timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp
+                })) as any,
+                updatedAt: new Date().toISOString()
+            };
+            saveSession(updatedSession).then(() => {
+                setCurrentSession(updatedSession);
+                // Refresh session list
+                loadSessionList().then(setSessions);
+            }).catch(err => {
+                console.error('Failed to save session:', err);
+            });
+        }, 1000);
+
+        setSessionSaveTimeout(timeout);
+
+        return () => {
+            if (timeout) clearTimeout(timeout);
+        };
+    }, [messages, currentSession?.id]);
 
     // Update agent and theme when settings change
     useEffect(() => {
@@ -224,13 +310,39 @@ export const Application = () => {
             // Update detected secrets list
             setDetectedSecrets(agent.getDetectedSecrets());
         } catch (error) {
-            const errorMessage: Message = {
-                role: 'assistant',
-                content: `Error: ${error instanceof Error ? error.message : 'Something went wrong'}`,
-                timestamp: new Date(),
-                isError: true
-            };
-            setMessages(prev => [...prev, errorMessage]);
+            // Check if this is an ApiRetryError (after all retries exhausted)
+            if (error instanceof ApiRetryError) {
+                // Show the custom error modal
+                setApiError({
+                    message: error.message,
+                    provider: error.provider,
+                    endpoint: error.endpoint,
+                    statusCode: error.statusCode,
+                    attemptsMade: error.attemptsMade,
+                    maxRetries: error.maxRetries,
+                    lastAttemptTime: error.lastAttemptTime
+                });
+                setLastUserMessage(content);
+                setErrorModalOpen(true);
+
+                // Also add a brief message in the chat
+                const errorMessage: Message = {
+                    role: 'assistant',
+                    content: `Connection failed after ${error.attemptsMade} attempts. Click the error notification for details.`,
+                    timestamp: new Date(),
+                    isError: true
+                };
+                setMessages(prev => [...prev, errorMessage]);
+            } else {
+                // Handle other errors normally
+                const errorMessage: Message = {
+                    role: 'assistant',
+                    content: `Error: ${error instanceof Error ? error.message : 'Something went wrong'}`,
+                    timestamp: new Date(),
+                    isError: true
+                };
+                setMessages(prev => [...prev, errorMessage]);
+            }
         } finally {
             setIsProcessing(false);
         }
@@ -252,10 +364,11 @@ export const Application = () => {
         pendingAction?.onDeny();
     }, [pendingAction]);
 
-    // Handle stop processing
+    // Handle stop processing - abort in-flight requests
     const handleStop = useCallback(() => {
+        agent.abort();
         setIsProcessing(false);
-    }, []);
+    }, [agent]);
 
     // Clear terminal
     const handleClearTerminal = useCallback(() => {
@@ -285,6 +398,167 @@ export const Application = () => {
 
     // Check if API is configured
     const isConfigured = Boolean(settings.apiKey && settings.provider);
+
+    // Terminal toggle
+    const toggleTerminal = useCallback(() => {
+        setTerminalVisible(prev => !prev);
+    }, []);
+
+    // Resize handlers for draggable divider
+    const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+    }, []);
+
+    const handleResize = useCallback((clientX: number) => {
+        if (!contentRef.current) return;
+
+        const containerRect = contentRef.current.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const relativeX = clientX - containerRect.left;
+
+        // Calculate percentage, clamped between 25% and 75%
+        let percentage = (relativeX / containerWidth) * 100;
+        percentage = Math.max(25, Math.min(75, percentage));
+
+        setChatPanelWidth(percentage);
+    }, []);
+
+    const handleResizeEnd = useCallback(() => {
+        setIsResizing(false);
+    }, []);
+
+    // Global mouse/touch move and up handlers for resize
+    useEffect(() => {
+        if (!isResizing) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            handleResize(e.clientX);
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            if (e.touches.length > 0) {
+                handleResize(e.touches[0].clientX);
+            }
+        };
+
+        const handleMouseUp = () => {
+            handleResizeEnd();
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('touchmove', handleTouchMove);
+        document.addEventListener('touchend', handleMouseUp);
+
+        // Add no-select class to body during resize
+        document.body.classList.add('resizing');
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('touchmove', handleTouchMove);
+            document.removeEventListener('touchend', handleMouseUp);
+            document.body.classList.remove('resizing');
+        };
+    }, [isResizing, handleResize, handleResizeEnd]);
+
+    // Session handlers
+    const handleNewSession = useCallback(() => {
+        const newSession = createSession();
+        setCurrentSession(newSession);
+        setMessages([]);
+        agent.clearConversationHistory();
+        setDrawerOpen(false);
+    }, [agent]);
+
+    const handleSelectSession = useCallback(async (id: string) => {
+        if (id === currentSession?.id) {
+            setDrawerOpen(false);
+            return;
+        }
+
+        const session = await loadSession(id);
+        if (session) {
+            setCurrentSession(session);
+            setMessages(session.messages.map(m => ({
+                ...m,
+                timestamp: new Date(m.timestamp)
+            })));
+            agent.clearConversationHistory();
+        }
+        setDrawerOpen(false);
+    }, [currentSession?.id, agent]);
+
+    const handleDeleteSession = useCallback(async (id: string) => {
+        await deleteSession(id);
+        const updatedSessions = sessions.filter(s => s.id !== id);
+        setSessions(updatedSessions);
+
+        // If we deleted the current session, create a new one
+        if (id === currentSession?.id) {
+            if (updatedSessions.length > 0) {
+                const session = await loadSession(updatedSessions[0].id);
+                if (session) {
+                    setCurrentSession(session);
+                    setMessages(session.messages.map(m => ({
+                        ...m,
+                        timestamp: new Date(m.timestamp)
+                    })));
+                } else {
+                    handleNewSession();
+                }
+            } else {
+                handleNewSession();
+            }
+        }
+    }, [sessions, currentSession?.id, handleNewSession]);
+
+    const handleClearChat = useCallback(() => {
+        handleNewSession();
+    }, [handleNewSession]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Check if user is typing in an input field
+            const activeElement = document.activeElement;
+            const isTyping = activeElement?.tagName === 'INPUT' ||
+                activeElement?.tagName === 'TEXTAREA' ||
+                (activeElement as HTMLElement)?.isContentEditable;
+
+            // Ctrl+L - Clear chat (only when not typing)
+            if (e.ctrlKey && e.key === 'l' && !isTyping) {
+                e.preventDefault();
+                handleClearChat();
+                return;
+            }
+
+            // Ctrl+` - Toggle terminal
+            if (e.ctrlKey && e.key === '`') {
+                e.preventDefault();
+                toggleTerminal();
+                return;
+            }
+
+            // Ctrl+, - Open settings
+            if (e.ctrlKey && e.key === ',') {
+                e.preventDefault();
+                setSettingsOpen(true);
+                return;
+            }
+
+            // Ctrl+H - Toggle history drawer
+            if (e.ctrlKey && e.key === 'h') {
+                e.preventDefault();
+                setDrawerOpen(prev => !prev);
+                return;
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [handleClearChat, toggleTerminal]);
 
     return (
         <div className="ai-agent-container">
@@ -338,6 +612,30 @@ export const Application = () => {
                                 </FlexItem>
                             )}
                             <FlexItem>
+                                <Tooltip content={_("Chat History (Ctrl+H)")}>
+                                    <Button
+                                        variant="plain"
+                                        aria-label="Chat History"
+                                        onClick={() => setDrawerOpen(prev => !prev)}
+                                        className={`header-settings-btn ${drawerOpen ? 'header-settings-btn--active' : ''}`}
+                                    >
+                                        <HistoryIcon />
+                                    </Button>
+                                </Tooltip>
+                            </FlexItem>
+                            <FlexItem>
+                                <Tooltip content={terminalVisible ? _("Hide Terminal (Immersive Chat)") : _("Show Terminal")}>
+                                    <Button
+                                        variant="plain"
+                                        aria-label={terminalVisible ? "Hide Terminal" : "Show Terminal"}
+                                        onClick={toggleTerminal}
+                                        className={`header-settings-btn terminal-toggle-btn ${!terminalVisible ? 'terminal-toggle-btn--hidden' : ''}`}
+                                    >
+                                        {terminalVisible ? <ColumnsIcon /> : <TerminalIcon />}
+                                    </Button>
+                                </Tooltip>
+                            </FlexItem>
+                            <FlexItem>
                                 <Button
                                     variant="plain"
                                     aria-label={settings.theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
@@ -363,9 +661,18 @@ export const Application = () => {
             </div>
 
             {/* Main Content - Split View */}
-            <div className="ai-agent-content">
+            <div
+                className={`ai-agent-content ${isResizing ? 'ai-agent-content--resizing' : ''} ${!terminalVisible ? 'ai-agent-content--full-chat' : ''}`}
+                ref={contentRef}
+            >
                 {/* Chat Panel - Left Side */}
-                <div className="ai-agent-chat">
+                <div
+                    className="ai-agent-chat"
+                    style={{
+                        flex: terminalVisible ? `0 0 ${chatPanelWidth}%` : '1 1 100%',
+                        maxWidth: terminalVisible ? `${chatPanelWidth}%` : '100%'
+                    }}
+                >
                     <ChatPanel
                         messages={messages}
                         isProcessing={isProcessing}
@@ -379,13 +686,39 @@ export const Application = () => {
                     />
                 </div>
 
+                {/* Resizable Divider */}
+                {terminalVisible && (
+                    <div
+                        className={`resize-divider ${isResizing ? 'resize-divider--active' : ''}`}
+                        onMouseDown={handleResizeStart}
+                        onTouchStart={handleResizeStart}
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize panels"
+                        tabIndex={0}
+                    >
+                        <div className="resize-divider__handle">
+                            <div className="resize-divider__dots">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Terminal View - Right Side */}
-                <div className="ai-agent-terminal">
-                    <TerminalView
-                        ref={terminalRef}
-                        onReady={() => setTerminalReady(true)}
-                    />
-                </div>
+                {terminalVisible && (
+                    <div
+                        className="ai-agent-terminal"
+                        style={{ flex: `0 0 ${100 - chatPanelWidth}%` }}
+                    >
+                        <TerminalView
+                            ref={terminalRef}
+                            onReady={() => setTerminalReady(true)}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Settings Modal */}
@@ -405,11 +738,39 @@ export const Application = () => {
                 />
             )}
 
+            {/* Session History Drawer */}
+            <SessionDrawer
+                isOpen={drawerOpen}
+                sessions={sessions}
+                currentSessionId={currentSession?.id || null}
+                onClose={() => setDrawerOpen(false)}
+                onNewSession={handleNewSession}
+                onSelectSession={handleSelectSession}
+                onDeleteSession={handleDeleteSession}
+            />
+
             {/* Onboarding Modal */}
             <OnboardingModal
                 isOpen={onboardingOpen}
                 initialSettings={settings}
                 onComplete={handleOnboardingComplete}
+            />
+
+            {/* Error Modal */}
+            <ErrorModal
+                isOpen={errorModalOpen}
+                error={apiError}
+                onClose={() => {
+                    setErrorModalOpen(false);
+                    setApiError(null);
+                }}
+                onRetry={() => {
+                    setErrorModalOpen(false);
+                    setApiError(null);
+                    if (lastUserMessage) {
+                        handleSendMessage(lastUserMessage);
+                    }
+                }}
             />
         </div>
     );

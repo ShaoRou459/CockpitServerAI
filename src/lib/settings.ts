@@ -137,8 +137,15 @@ export const PROVIDERS = {
 };
 
 import cockpit from 'cockpit';
+import { encryptValue, ensureDecrypted, isEncrypted } from './crypto';
 
 const SETTINGS_PATH = '.config/cockpit-ai-agent/settings.json';
+
+// Internal type for stored settings (API key is encrypted)
+interface StoredSettings extends Omit<Settings, 'apiKey'> {
+    apiKey: string;  // Encrypted
+    _encrypted?: boolean;  // Flag to indicate if apiKey is encrypted
+}
 
 // Load settings from server-side config file
 export async function loadSettings(): Promise<Settings> {
@@ -152,15 +159,40 @@ export async function loadSettings(): Promise<Settings> {
         file.close();
 
         if (content && typeof content === 'string') {
-            const parsed = JSON.parse(content) as Partial<Settings>;
+            const parsed = JSON.parse(content) as Partial<StoredSettings>;
+
+            // Decrypt API key if it's encrypted
+            let decryptedApiKey = parsed.apiKey || '';
+            if (decryptedApiKey && (parsed._encrypted || isEncrypted(decryptedApiKey))) {
+                try {
+                    decryptedApiKey = await ensureDecrypted(decryptedApiKey);
+                    console.log('API key decrypted successfully');
+                } catch (e) {
+                    console.error('Failed to decrypt API key:', e);
+                    // Key might have been encrypted by different user, clear it
+                    decryptedApiKey = '';
+                }
+            } else if (decryptedApiKey && !parsed._encrypted) {
+                // Legacy plaintext key - will be encrypted on next save
+                console.log('Found legacy plaintext API key, will encrypt on next save');
+            }
+
             // If settings file exists but doesn't have onboardingComplete field,
             // assume it's a legacy config and onboarding was implicitly done
             const settings: Settings = {
                 ...DEFAULT_SETTINGS,
                 ...parsed,
+                apiKey: decryptedApiKey,
                 // Preserve onboardingComplete if set, otherwise assume complete for existing configs
                 onboardingComplete: parsed.onboardingComplete ?? true
             };
+
+            // If we loaded a legacy plaintext key, re-save to encrypt it
+            if (parsed.apiKey && !parsed._encrypted && decryptedApiKey) {
+                console.log('Migrating plaintext API key to encrypted storage');
+                await saveSettings(settings);
+            }
+
             return settings;
         }
     } catch (e) {
@@ -179,11 +211,11 @@ export async function loadSettings(): Promise<Settings> {
                 ...parsed,
                 onboardingComplete: true
             };
-            // Migrate to server-side storage
+            // Migrate to server-side storage (will encrypt the API key)
             await saveSettings(settings);
             // Clear localStorage after migration
             localStorage.removeItem('cockpit-ai-agent-settings');
-            console.log('Migrated settings from localStorage to server');
+            console.log('Migrated settings from localStorage to server (with encryption)');
             return settings;
         }
     } catch (e) {
@@ -204,9 +236,28 @@ export async function saveSettings(settings: Settings): Promise<void> {
         // Ensure the config directory exists
         await cockpit.spawn(['mkdir', '-p', configDir], { err: 'ignore' });
 
+        // Encrypt the API key before saving
+        let encryptedApiKey = '';
+        if (settings.apiKey) {
+            try {
+                encryptedApiKey = await encryptValue(settings.apiKey);
+                console.log('API key encrypted for storage');
+            } catch (e) {
+                console.error('Failed to encrypt API key:', e);
+                throw new Error('Failed to encrypt API key for storage');
+            }
+        }
+
+        // Create stored settings with encrypted API key
+        const storedSettings: StoredSettings = {
+            ...settings,
+            apiKey: encryptedApiKey,
+            _encrypted: true
+        };
+
         // Write settings to file as JSON string
         const file = cockpit.file(configPath);
-        await file.replace(JSON.stringify(settings, null, 2));
+        await file.replace(JSON.stringify(storedSettings, null, 2));
         file.close();
     } catch (e) {
         console.error('Failed to save settings to server:', e);

@@ -196,12 +196,15 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
             }
         });
 
+        // Track if initial setup is done to avoid double prompts
+        let initialSetupDone = false;
+
         // Handle terminal resize - use stty to update terminal size
         terminal.onResize(({ cols, rows }) => {
-            if (channelRef.current) {
+            if (channelRef.current && initialSetupDone) {
                 // Send stty command to update terminal size
-                // This is a fallback approach when window-change control doesn't work
-                channelRef.current.input(`stty cols ${cols} rows ${rows}\n`, true);
+                // Use Ctrl+C first to clear any partial input, then stty, then Ctrl+L to refresh
+                channelRef.current.input(`stty cols ${cols} rows ${rows}; printf '\\033[2J\\033[H'\n`, true);
             }
         });
 
@@ -230,8 +233,8 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                 displayData = displayData.replace(/; __AI_EXIT_CODE__=\$\?; printf '___AI_CMD_DONE___%d___CWD___%s___\\n' \$__AI_EXIT_CODE__ "\$PWD"/g, '');
                 displayData = displayData.replace(/___AI_CMD_DONE___\d+___CWD___[^_]*___/g, '');
                 displayData = displayData.replace(/__AI_EXIT_CODE__=\d+/g, '');
-                // Remove stty resize command (we send this internally)
-                displayData = displayData.replace(/stty cols \d+ rows \d+\r?\n?/g, '');
+                // Remove stty resize commands (we send these internally)
+                displayData = displayData.replace(/stty cols \d+ rows \d+[^\r\n]*\r?\n?/g, '');
 
                 // Write to terminal if there's anything to display (including spaces)
                 if (displayData.length > 0) {
@@ -330,10 +333,12 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
 
                 spawnShell();
 
-                // After shell spawns, set the terminal size via stty
+                // After shell spawns, set the terminal size via stty and clear screen for clean start
                 setTimeout(() => {
                     if (channelRef.current) {
-                        channelRef.current.input(`stty cols ${cols} rows ${rows}\n`, true);
+                        // Set terminal size and clear screen to avoid double prompt
+                        channelRef.current.input(`stty cols ${cols} rows ${rows}; clear\n`, true);
+                        initialSetupDone = true;
                     }
                 }, 200);
 

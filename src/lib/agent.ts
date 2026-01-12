@@ -55,6 +55,20 @@ export class AgentController {
         debugLogger.setEnabled(settings.debugMode);
     }
 
+    /**
+     * Abort any in-progress AI request
+     */
+    abort(): void {
+        this.aiClient.abort();
+    }
+
+    /**
+     * Check if a request is currently in progress
+     */
+    isRequestInProgress(): boolean {
+        return this.aiClient.isRequestInProgress();
+    }
+
     async processMessage(userMessage: string, options: ProcessOptions): Promise<string> {
         const { hostname, onAction, onOutput, onActionExecuted, onInteractiveCommand, onIntermediateResponse, executeCommand } = options;
 
@@ -514,13 +528,20 @@ When a command is interactive, I will show your hint to the user so they know to
      * Clear conversation history and optionally reset the shell session
      */
     clearHistory(resetSession: boolean = true, clearSecrets: boolean = false) {
-        this.conversationHistory = [];
+        this.clearConversationHistory();
         if (resetSession) {
             this.resetShell();
         }
         if (clearSecrets) {
             secretManager.clear();
         }
+    }
+
+    /**
+     * Clear only conversation history
+     */
+    clearConversationHistory() {
+        this.conversationHistory = [];
     }
 
     /**

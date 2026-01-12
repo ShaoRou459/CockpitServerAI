@@ -36,6 +36,7 @@ import {
 } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 import type { Message, PendingAction, Action } from '../lib/types';
 
@@ -44,6 +45,30 @@ marked.setOptions({
     breaks: true,
     gfm: true,
 });
+
+// Configure DOMPurify to allow safe HTML elements for markdown
+const purifyConfig = {
+    ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'em', 'b', 'i', 'u', 's', 'del',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li',
+        'pre', 'code', 'blockquote',
+        'a', 'hr',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'span', 'div'
+    ],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+    ALLOW_DATA_ATTR: false,
+    ADD_ATTR: ['target'], // Allow target for links
+    FORBID_TAGS: ['script', 'style', 'iframe', 'form', 'input', 'object', 'embed'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
+    RETURN_TRUSTED_TYPE: false,  // Return string, not TrustedHTML
+} as const;
+
+// Sanitize HTML content
+function sanitizeHtml(dirty: string): string {
+    return DOMPurify.sanitize(dirty, purifyConfig) as string;
+}
 
 const _ = cockpit.gettext;
 
@@ -59,6 +84,8 @@ interface ChatPanelProps {
     onStop?: () => void;
 }
 
+const MAX_INPUT_HISTORY = 100;
+
 export const ChatPanel: React.FC<ChatPanelProps> = ({
     messages,
     isProcessing,
@@ -71,7 +98,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     onStop
 }) => {
     const [input, setInput] = useState('');
+    const [inputHistory, setInputHistory] = useState<string[]>([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const [savedInput, setSavedInput] = useState(''); // Saves current input when navigating history
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
     // Auto-scroll to bottom when messages change or pending action appears
     useEffect(() => {
@@ -81,8 +112,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     const handleSubmit = (e?: React.FormEvent) => {
         e?.preventDefault();
         if (input.trim() && isConfigured && !isProcessing) {
-            onSendMessage(input.trim());
+            // Add to input history
+            const trimmedInput = input.trim();
+            setInputHistory(prev => {
+                // Don't add duplicates consecutively
+                if (prev.length > 0 && prev[0] === trimmedInput) {
+                    return prev;
+                }
+                const newHistory = [trimmedInput, ...prev];
+                return newHistory.slice(0, MAX_INPUT_HISTORY);
+            });
+
+            onSendMessage(trimmedInput);
             setInput('');
+            setHistoryIndex(-1);
+            setSavedInput('');
         }
     };
 
@@ -96,6 +140,52 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSubmit();
+            return;
+        }
+
+        // Up arrow - navigate to older messages
+        if (e.key === 'ArrowUp') {
+            // Only navigate if cursor is at the start or input is single line
+            const textarea = e.target as HTMLTextAreaElement;
+            const isAtStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0;
+            const isSingleLine = !input.includes('\n');
+
+            if ((isAtStart || isSingleLine) && inputHistory.length > 0) {
+                e.preventDefault();
+
+                if (historyIndex === -1) {
+                    // Save current input before navigating
+                    setSavedInput(input);
+                }
+
+                const newIndex = Math.min(historyIndex + 1, inputHistory.length - 1);
+                if (newIndex !== historyIndex) {
+                    setHistoryIndex(newIndex);
+                    setInput(inputHistory[newIndex]);
+                }
+            }
+        }
+
+        // Down arrow - navigate to newer messages
+        if (e.key === 'ArrowDown') {
+            // Only navigate if cursor is at the end or input is single line
+            const textarea = e.target as HTMLTextAreaElement;
+            const isAtEnd = textarea.selectionStart === input.length;
+            const isSingleLine = !input.includes('\n');
+
+            if ((isAtEnd || isSingleLine) && historyIndex >= 0) {
+                e.preventDefault();
+
+                const newIndex = historyIndex - 1;
+                setHistoryIndex(newIndex);
+
+                if (newIndex === -1) {
+                    // Restore saved input
+                    setInput(savedInput);
+                } else {
+                    setInput(inputHistory[newIndex]);
+                }
+            }
         }
     };
 
@@ -485,12 +575,13 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
                 </React.Fragment>
             ));
         } else {
-            // Assistant messages: parse markdown
-            const html = marked.parse(message.content) as string;
+            // Assistant messages: parse markdown and sanitize
+            const rawHtml = marked.parse(message.content) as string;
+            const safeHtml = sanitizeHtml(rawHtml);
             return (
                 <div
                     className="markdown-content"
-                    dangerouslySetInnerHTML={{ __html: html }}
+                    dangerouslySetInnerHTML={{ __html: safeHtml }}
                 />
             );
         }

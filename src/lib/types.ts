@@ -68,3 +68,21 @@ export interface SystemContext {
     cwd?: string;
     uptime?: string;
 }
+
+// Chat session for history
+export interface ChatSession {
+    id: string;
+    title: string;
+    messages: Message[];
+    createdAt: string;  // ISO string for JSON serialization
+    updatedAt: string;  // ISO string for JSON serialization
+}
+
+// Session metadata for list view (without full messages)
+export interface SessionMetadata {
+    id: string;
+    title: string;
+    messageCount: number;
+    createdAt: string;
+    updatedAt: string;
+}

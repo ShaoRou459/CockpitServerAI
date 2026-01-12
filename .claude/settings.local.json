@@ -3,7 +3,9 @@
     "allow": [
       "Bash(node build.js:*)",
       "Bash(git -C \"C:\\\\Users\\\\peter\\\\Work\\\\CockpitServerAI\" log --oneline -20)",
-      "Bash(git -C \"C:\\\\Users\\\\peter\\\\Work\\\\CockpitServerAI\" show --stat 1dd39a4)"
+      "Bash(git -C \"C:\\\\Users\\\\peter\\\\Work\\\\CockpitServerAI\" show --stat 1dd39a4)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)"
     ]
   }
 }
