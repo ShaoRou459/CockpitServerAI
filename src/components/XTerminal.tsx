@@ -99,17 +99,17 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                 const wrappedCommand = `${command}; __AI_EXIT_CODE__=$?; printf '${COMMAND_MARKER}%d___CWD___%s___\\n' $__AI_EXIT_CODE__ "$PWD"\n`;
                 channelRef.current.input(wrappedCommand, true);
 
-                // Timeout after 60 seconds
+                // Timeout after 360 seconds
                 setTimeout(() => {
                     if (commandResolverRef.current?.markerId === markerId) {
                         commandResolverRef.current = null;
                         resolve({
-                            output: 'Command timed out after 60 seconds',
+                            output: 'Command timed out after 360 seconds',
                             exitCode: -1,
                             cwd: ''
                         });
                     }
-                }, 60000);
+                }, 360000);
             });
         },
 

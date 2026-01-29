@@ -2088,23 +2088,44 @@ body.resizing * {
     color: #6a6e73;
 }
 
-/* TextArea styling - light theme */
-.ai-agent-chat textarea,
-.pf-v6-c-form-control textarea {
+/* TextArea styling - fix double border issue */
+/* The PatternFly TextArea wraps a textarea in a div.pf-v6-c-form-control */
+/* We need to style the wrapper to be transparent and only style the textarea */
+
+/* Remove border/background from the wrapper div */
+.chat-input-container .pf-v6-c-form-control {
+    flex: 1;
+    min-height: 60px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    padding: 0 !important;
+}
+
+/* Style the actual textarea element */
+.chat-input-container textarea,
+.ai-agent-chat textarea {
+    width: 100%;
+    height: 100%;
+    min-height: 60px;
     background-color: var(--ai-panel-bg) !important;
     border: 1px solid var(--ai-border-color) !important;
     border-radius: 4px !important;
     color: var(--ai-text-color) !important;
     font-size: 14px;
+    padding: 10px 12px !important;
+    resize: vertical;
 }
 
-.ai-agent-chat textarea:focus,
-.pf-v6-c-form-control textarea:focus {
+.chat-input-container textarea:focus,
+.ai-agent-chat textarea:focus {
     border-color: var(--ai-primary-color) !important;
-    box-shadow: 0 0 0 1px var(--ai-primary-color) !important;
+    box-shadow: none !important;
     outline: none !important;
 }
 
+.chat-input-container textarea::placeholder,
 .ai-agent-chat textarea::placeholder {
     color: var(--ai-text-muted);
 }
@@ -2118,11 +2139,6 @@ body.resizing * {
     display: flex;
     gap: 8px;
     align-items: stretch;
-}
-
-.chat-input-container .pf-v6-c-form-control {
-    flex: 1;
-    min-height: 60px;
 }
 
 .chat-input-container .chat-action-button {
@@ -2193,6 +2209,7 @@ body.resizing * {
 }
 
 @media (max-width: 768px) {
+
     /* Header responsive */
     .ai-agent-header {
         padding: 8px 12px;
@@ -2258,7 +2275,7 @@ body.resizing * {
         gap: 4px;
     }
 
-    .ai-agent-header .pf-v6-l-flex > * {
+    .ai-agent-header .pf-v6-l-flex>* {
         --pf-v6-l-flex--spacer: 4px;
     }
 }
@@ -2332,6 +2349,7 @@ body.resizing * {
     from {
         opacity: 0;
     }
+
     to {
         opacity: 1;
     }
@@ -2356,6 +2374,7 @@ body.resizing * {
     from {
         transform: translateX(-100%);
     }
+
     to {
         transform: translateX(0);
     }
