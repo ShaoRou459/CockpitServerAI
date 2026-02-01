@@ -10,8 +10,8 @@
     "node": ">= 18"
   },
   "scripts": {
-    "watch": "ESBUILD_WATCH='true' ./build.js",
-    "build": "./build.js",
+    "watch": "node build.js --watch",
+    "build": "node build.js",
     "eslint": "eslint src/",
     "eslint:fix": "eslint --fix src/",
     "stylelint": "stylelint src/*{.css,scss}",

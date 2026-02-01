@@ -17,6 +17,7 @@ import type { Action, AIResponse, SystemContext, CommandResult } from './types';
 // Callback types
 type ActionCallback = (action: Action) => Promise<boolean>;
 type OutputCallback = (output: string) => void;
+type ActionStartCallback = (action: Action) => void;
 type ActionLogCallback = (action: Action, result: CommandResult) => void;
 type CommandExecutor = (command: string) => Promise<{ output: string; exitCode: number; cwd: string }>;
 type InteractiveCallback = (action: Action, hint: string) => void;
@@ -26,9 +27,11 @@ interface ProcessOptions {
     hostname: string;
     onAction: ActionCallback;
     onOutput: OutputCallback;
+    onActionStarted?: ActionStartCallback;
     onActionExecuted?: ActionLogCallback;
     onInteractiveCommand?: InteractiveCallback;  // Called when interactive command starts
     onIntermediateResponse?: IntermediateResponseCallback;  // Called to show AI response before command completes
+    onAssistantStream?: (text: string) => void; // Called with streaming assistant "response" field content
     executeCommand: CommandExecutor;  // Execute command via terminal
 }
 
@@ -56,6 +59,14 @@ export class AgentController {
     }
 
     /**
+     * Replace the in-memory conversation history (used to restore a chat session's context).
+     * Note: system prompt/context is still provided separately via buildSystemPrompt().
+     */
+    setConversationHistory(history: ChatMessage[]): void {
+        this.conversationHistory = [...history];
+    }
+
+    /**
      * Abort any in-progress AI request
      */
     abort(): void {
@@ -70,7 +81,7 @@ export class AgentController {
     }
 
     async processMessage(userMessage: string, options: ProcessOptions): Promise<string> {
-        const { hostname, onAction, onOutput, onActionExecuted, onInteractiveCommand, onIntermediateResponse, executeCommand } = options;
+        const { hostname, onAction, onOutput, onActionStarted, onActionExecuted, onInteractiveCommand, onIntermediateResponse, onAssistantStream, executeCommand } = options;
 
         // Add user message to history
         this.conversationHistory.push({
@@ -93,9 +104,17 @@ export class AgentController {
                 iteration++;
 
                 // Send to AI
+                const sendOpts: { onResponseStream?: (text: string) => void } = {};
+                if (this.settings.streamResponses && onAssistantStream) {
+                    // Mark a new iteration boundary for the UI (without clearing already-rendered text)
+                    onAssistantStream('');
+                    sendOpts.onResponseStream = onAssistantStream;
+                }
+
                 const aiResponse = await this.aiClient.sendMessage(
                     this.conversationHistory,
-                    systemPrompt
+                    systemPrompt,
+                    sendOpts
                 );
 
                 // If no actions, we're done
@@ -110,7 +129,7 @@ export class AgentController {
 
                 // For interactive commands, show the AI response immediately before waiting
                 const hasInteractive = aiResponse.actions.some(a => a.interactive);
-                if (hasInteractive && onIntermediateResponse && aiResponse.response) {
+                if (hasInteractive && onIntermediateResponse && aiResponse.response && !(this.settings.streamResponses && onAssistantStream)) {
                     onIntermediateResponse(aiResponse.response);
                 }
 
@@ -119,6 +138,7 @@ export class AgentController {
                     aiResponse.actions,
                     onAction,
                     onOutput,
+                    onActionStarted,
                     onActionExecuted,
                     onInteractiveCommand,
                     executeCommand
@@ -167,6 +187,7 @@ export class AgentController {
         actions: Action[],
         onAction: ActionCallback,
         onOutput: OutputCallback,
+        onActionStarted: ActionStartCallback | undefined,
         onActionExecuted: ActionLogCallback | undefined,
         onInteractiveCommand: InteractiveCallback | undefined,
         executeCommand: CommandExecutor
@@ -199,6 +220,9 @@ export class AgentController {
             if (action.interactive && onInteractiveCommand) {
                 const hint = action.interactive_hint || 'This command requires input in the terminal';
                 onInteractiveCommand(action, hint);
+            } else if (onActionStarted) {
+                // For non-interactive actions, emit a "started" event so the UI can show the command immediately
+                onActionStarted(action);
             }
 
             // Execute the action
@@ -440,7 +464,9 @@ ${result.stderr ? `Errors:\n${result.stderr}` : ''}`;
 
 ${parts.join('\n\n---\n\n')}
 
-Based on these results, continue with the next steps if needed. If the task is complete, summarize the outcome. If you need to run more commands, include them in your response. If no more commands are needed, respond with an empty actions array.`;
+Based on these results, decide the next steps.
+
+IMPORTANT: Your entire next assistant message MUST be a single valid JSON object matching the required schema (no prose before/after). If you need to explain anything to the user, put it inside the "response" string. If no more commands are needed, set "actions" to an empty array.`;
     }
 
     private buildSystemPrompt(context: SystemContext): string {
@@ -465,6 +491,12 @@ You MUST respond with valid JSON in this exact format:
   ],
   "response": "Your message to the user explaining what you're doing or answering their question"
 }
+
+CRITICAL FORMATTING RULES (non-negotiable):
+- Output ONLY the JSON object. Do not output any other text before or after it.
+- Do NOT wrap the JSON in markdown code fences.
+- If you want to show markdown/code blocks to the user, include them inside the "response" string value.
+- Never repeat the "response" text outside the JSON object.
 
 ## Action Types
 - command: Execute a shell command

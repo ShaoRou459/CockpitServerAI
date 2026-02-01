@@ -336,6 +336,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </HelperTextItem>
                 </HelperText>
             </FormGroup>
+
+            <FormGroup fieldId="settings-stream-responses">
+                <Switch
+                    id="settings-stream-responses"
+                    label={_("Stream AI responses")}
+                    isChecked={formData.streamResponses}
+                    onChange={(_e, checked) => updateField('streamResponses', checked)}
+                />
+                <HelperText>
+                    <HelperTextItem>
+                        {_("Show the assistant's response as it is generated (recommended)")}
+                    </HelperTextItem>
+                </HelperText>
+            </FormGroup>
         </Form>
     );
 

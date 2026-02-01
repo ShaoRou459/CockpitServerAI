@@ -6,6 +6,7 @@ import type { RiskLevel } from './settings';
 
 // Message in chat history
 export interface Message {
+    id?: string; // Stable identifier (used for streaming updates)
     role: 'user' | 'assistant' | 'system' | 'action' | 'interactive';
     content: string;
     timestamp: Date;

@@ -432,7 +432,7 @@ const getActionIcon = (type: Action['type']) => {
 // Compact action message component
 const ActionBubble: React.FC<{ message: Message }> = ({ message }) => {
     const [expanded, setExpanded] = useState(false);
-    const success = message.result?.success;
+    const state = message.result ? (message.result.success ? 'success' : 'failure') : 'running';
     const action = message.action!;
 
     // Get the primary display text (command, path, or service operation)
@@ -456,7 +456,7 @@ const ActionBubble: React.FC<{ message: Message }> = ({ message }) => {
         (action.type === 'file_read' && message.result?.stdout);
 
     return (
-        <div className={`action-compact ${success ? 'success' : 'failure'}`}>
+        <div className={`action-compact ${state}`}>
             <button
                 className="action-compact-header"
                 onClick={() => setExpanded(!expanded)}
@@ -465,8 +465,8 @@ const ActionBubble: React.FC<{ message: Message }> = ({ message }) => {
                 <span className="action-compact-icon">
                     {expanded ? <AngleDownIcon /> : <AngleRightIcon />}
                 </span>
-                <span className={`action-compact-status ${success ? 'success' : 'failure'}`}>
-                    {success ? <CheckCircleIcon /> : <TimesCircleIcon />}
+                <span className={`action-compact-status ${state}`}>
+                    {state === 'running' ? <Spinner size="sm" /> : (state === 'success' ? <CheckCircleIcon /> : <TimesCircleIcon />)}
                 </span>
                 <code className="action-compact-command">{getPrimaryText()}</code>
             </button>
@@ -475,6 +475,11 @@ const ActionBubble: React.FC<{ message: Message }> = ({ message }) => {
                     <div className="action-compact-description">
                         {action.description}
                     </div>
+                    {state === 'running' && (
+                        <div className="action-compact-running">
+                            Running... (watch the terminal for live output)
+                        </div>
+                    )}
                     {/* Command output */}
                     {action.type === 'command' && message.result?.stdout && (
                         <div className="action-compact-output">

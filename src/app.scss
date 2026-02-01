@@ -1443,6 +1443,10 @@ body.resizing * {
     border-left-color: #c9190b;
 }
 
+.action-compact.running {
+    border-left-color: #73bcf7;
+}
+
 .action-compact-header {
     display: flex;
     align-items: center;
@@ -1477,6 +1481,16 @@ body.resizing * {
 
 .action-compact-status.failure {
     color: #c9190b;
+}
+
+.action-compact-status.running {
+    color: #73bcf7;
+}
+
+.action-compact-running {
+    font-size: 12px;
+    color: var(--ai-text-muted);
+    margin-top: 6px;
 }
 
 .action-compact-command {

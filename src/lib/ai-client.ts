@@ -89,13 +89,165 @@ export interface ChatMessage {
     content: string;
 }
 
+export interface SendMessageOptions {
+    signal?: AbortSignal;
+    onResponseStream?: (text: string) => void; // Streams the parsed "response" field (not raw JSON)
+}
+
+function createJsonResponseFieldExtractor(onUpdate: (text: string) => void) {
+    // Incrementally extracts and decodes the JSON string value of the "response" field.
+    // Assumes the model output is valid JSON (as prompted).
+    let searchBuffer = '';
+    let inResponseString = false;
+    let escape = false;
+    let unicodeBuf: string | null = null;
+    let decoded = '';
+
+    const RESPONSE_KEY_RE = /"response"\s*:\s*"/g;
+
+    const push = (chunk: string) => {
+        if (!chunk) return;
+
+        if (!inResponseString) {
+            searchBuffer += chunk;
+            // Cap buffer so it doesn't grow unbounded if "response" is late.
+            if (searchBuffer.length > 20000) {
+                searchBuffer = searchBuffer.slice(-20000);
+            }
+
+            const match = RESPONSE_KEY_RE.exec(searchBuffer);
+            if (!match) return;
+
+            const start = match.index + match[0].length;
+            const remainder = searchBuffer.slice(start);
+            searchBuffer = '';
+            inResponseString = true;
+            if (remainder) push(remainder);
+            return;
+        }
+
+        for (let i = 0; i < chunk.length; i++) {
+            const ch = chunk[i];
+
+            if (unicodeBuf !== null) {
+                unicodeBuf += ch;
+                if (unicodeBuf.length === 4) {
+                    const code = parseInt(unicodeBuf, 16);
+                    if (!Number.isNaN(code)) decoded += String.fromCharCode(code);
+                    unicodeBuf = null;
+                    onUpdate(decoded);
+                }
+                continue;
+            }
+
+            if (escape) {
+                escape = false;
+                switch (ch) {
+                    case 'n': decoded += '\n'; break;
+                    case 'r': decoded += '\r'; break;
+                    case 't': decoded += '\t'; break;
+                    case '"': decoded += '"'; break;
+                    case '\\': decoded += '\\'; break;
+                    case '/': decoded += '/'; break;
+                    case 'u':
+                        unicodeBuf = '';
+                        break;
+                    default:
+                        decoded += ch;
+                }
+                onUpdate(decoded);
+                continue;
+            }
+
+            if (ch === '\\') {
+                escape = true;
+                continue;
+            }
+
+            if (ch === '"') {
+                // End of the response string
+                inResponseString = false;
+                onUpdate(decoded);
+                return;
+            }
+
+            decoded += ch;
+            onUpdate(decoded);
+        }
+    };
+
+    const reset = () => {
+        searchBuffer = '';
+        inResponseString = false;
+        escape = false;
+        unicodeBuf = null;
+        decoded = '';
+        onUpdate('');
+    };
+
+    return { push, reset };
+}
+
+function tryExtractJsonObject(text: string): any | null {
+    // Attempts to find and parse the last valid JSON object within an arbitrary string.
+    // This is a fallback for models that (incorrectly) emit prose before/after JSON.
+    let inString = false;
+    let escape = false;
+    let depth = 0;
+    let start = -1;
+    let lastCandidate: string | null = null;
+
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+
+        if (escape) {
+            escape = false;
+            continue;
+        }
+
+        if (ch === '\\') {
+            if (inString) escape = true;
+            continue;
+        }
+
+        if (ch === '"') {
+            inString = !inString;
+            continue;
+        }
+
+        if (inString) continue;
+
+        if (ch === '{') {
+            if (depth === 0) start = i;
+            depth++;
+            continue;
+        }
+
+        if (ch === '}') {
+            if (depth > 0) depth--;
+            if (depth === 0 && start !== -1) {
+                lastCandidate = text.slice(start, i + 1);
+                start = -1;
+            }
+        }
+    }
+
+    if (!lastCandidate) return null;
+    try {
+        return JSON.parse(lastCandidate);
+    } catch {
+        return null;
+    }
+}
+
 // Helper function to make HTTP requests via curl
 async function httpRequest(
     url: string,
     method: string,
     headers: Record<string, string>,
     body: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    opts?: { onData?: (chunk: string) => void; noBuffer?: boolean }
 ): Promise<{ status: number; body: string; error?: string }> {
 
     return new Promise((resolve, reject) => {
@@ -114,6 +266,7 @@ async function httpRequest(
             'curl',
             '-s',           // Silent
             '-S',           // Show errors
+            ...(opts?.noBuffer ? ['-N'] : []), // Disable buffering (for streaming)
             '-X', method,
             '-w', '\\n%{http_code}',  // Append status code
             ...headerArgs,
@@ -142,6 +295,7 @@ async function httpRequest(
 
         proc.stream((data: string) => {
             output += data;
+            opts?.onData?.(data);
         });
 
         proc.then(() => {
@@ -203,14 +357,14 @@ export class AIClient {
         return this.currentAbortController !== null;
     }
 
-    async sendMessage(messages: ChatMessage[], systemPrompt: string, signal?: AbortSignal): Promise<AIResponse> {
+    async sendMessage(messages: ChatMessage[], systemPrompt: string, options?: SendMessageOptions): Promise<AIResponse> {
         // Create internal abort controller that can be triggered by both external signal and abort() method
         this.currentAbortController = new AbortController();
         const internalSignal = this.currentAbortController.signal;
 
         // If external signal is provided, link it to our internal controller
-        if (signal) {
-            signal.addEventListener('abort', () => this.abort(), { once: true });
+        if (options?.signal) {
+            options.signal.addEventListener('abort', () => this.abort(), { once: true });
         }
         const { provider, apiKey, model, baseUrl } = this.settings;
 
@@ -247,9 +401,9 @@ export class AIClient {
 
                     let result: AIResponse;
                     if (providerConfig.requestFormat === 'gemini') {
-                        result = await this.sendGeminiRequest(messages, systemPrompt, actualBaseUrl, apiKey, model, internalSignal);
+                        result = await this.sendGeminiRequest(messages, systemPrompt, actualBaseUrl, apiKey, model, options?.onResponseStream, internalSignal);
                     } else {
-                        result = await this.sendOpenAIRequest(messages, systemPrompt, actualBaseUrl, apiKey, model, providerConfig, internalSignal);
+                        result = await this.sendOpenAIRequest(messages, systemPrompt, actualBaseUrl, apiKey, model, providerConfig, options?.onResponseStream, internalSignal);
                     }
                     return result;
                 } catch (error) {
@@ -309,6 +463,7 @@ export class AIClient {
         apiKey: string,
         model: string,
         providerConfig: typeof PROVIDERS.openai,
+        onResponseStream?: ((text: string) => void) | undefined,
         signal?: AbortSignal
     ): Promise<AIResponse> {
         const url = `${baseUrl}${providerConfig.endpoint}`;
@@ -327,11 +482,13 @@ export class AIClient {
             headers[providerConfig.authHeader] = `${providerConfig.authPrefix}${apiKey}`;
         }
 
+        const stream = Boolean(this.settings.streamResponses && onResponseStream);
         const body = JSON.stringify({
             model,
             messages: requestMessages,
             temperature: this.settings.temperature,
             max_tokens: this.settings.maxTokens,
+            ...(stream ? { stream: true } : {}),
         });
 
         // Log the full request
@@ -342,7 +499,48 @@ export class AIClient {
             messages: requestMessages,
         });
 
-        const response = await httpRequest(url, 'POST', headers, body, signal);
+        const extractor = onResponseStream ? createJsonResponseFieldExtractor(onResponseStream) : null;
+        if (extractor && stream) extractor.reset();
+
+        let streamedContent = '';
+        let sseLineBuffer = '';
+
+        const response = await httpRequest(
+            url,
+            'POST',
+            headers,
+            body,
+            signal,
+            stream ? {
+                noBuffer: true,
+                onData: (chunk) => {
+                    // OpenAI chat.completions streaming is SSE where each line starts with "data: "
+                    sseLineBuffer += chunk;
+                    let nlIdx = sseLineBuffer.indexOf('\n');
+                    while (nlIdx !== -1) {
+                        const rawLine = sseLineBuffer.slice(0, nlIdx);
+                        sseLineBuffer = sseLineBuffer.slice(nlIdx + 1);
+                        const line = rawLine.trimEnd();
+                        nlIdx = sseLineBuffer.indexOf('\n');
+
+                        if (!line.startsWith('data:')) continue;
+                        const dataStr = line.slice(5).trim();
+                        if (!dataStr || dataStr === '[DONE]') continue;
+
+                        try {
+                            const evt = JSON.parse(dataStr);
+                            const delta = evt.choices?.[0]?.delta?.content;
+                            if (typeof delta === 'string' && delta.length > 0) {
+                                streamedContent += delta;
+                                extractor?.push(delta);
+                            }
+                        } catch {
+                            // Ignore parse errors while streaming
+                        }
+                    }
+                }
+            } : undefined
+        );
         const duration = Date.now() - startTime;
 
         // Log the response
@@ -358,8 +556,24 @@ export class AIClient {
             throw new Error(`API request failed: ${response.status} - ${response.body}`);
         }
 
-        const data = JSON.parse(response.body);
-        const content = data.choices?.[0]?.message?.content;
+        // In streaming mode, the response body will be the raw SSE transcript; we reconstruct the
+        // assistant message from deltas instead.
+        let content: string | undefined;
+        if (stream) {
+            content = streamedContent;
+            if (!content) {
+                // Fallback for OpenAI-compatible endpoints that ignore `stream: true`
+                try {
+                    const data = JSON.parse(response.body);
+                    content = data.choices?.[0]?.message?.content;
+                } catch {
+                    content = undefined;
+                }
+            }
+        } else {
+            const data = JSON.parse(response.body);
+            content = data.choices?.[0]?.message?.content;
+        }
 
         if (!content) {
             debugLogger.logError('OpenAI Response', 'Empty content in response');
@@ -375,9 +589,14 @@ export class AIClient {
         baseUrl: string,
         apiKey: string,
         model: string,
+        onResponseStream?: ((text: string) => void) | undefined,
         signal?: AbortSignal
     ): Promise<AIResponse> {
-        const endpoint = PROVIDERS.gemini.endpoint.replace('{model}', model);
+        const stream = Boolean(this.settings.streamResponses && onResponseStream);
+        const endpointTemplate = stream
+            ? PROVIDERS.gemini.endpoint.replace(':generateContent', ':streamGenerateContent')
+            : PROVIDERS.gemini.endpoint;
+        const endpoint = endpointTemplate.replace('{model}', model);
         const url = `${baseUrl}${endpoint}?key=${apiKey}`;
         const startTime = Date.now();
 
@@ -411,7 +630,50 @@ export class AIClient {
             contents: contents,
         });
 
-        const response = await httpRequest(url, 'POST', headers, body, signal);
+        const extractor = onResponseStream ? createJsonResponseFieldExtractor(onResponseStream) : null;
+        if (extractor && stream) extractor.reset();
+
+        let sseLineBuffer = '';
+        let lastText = '';
+
+        const response = await httpRequest(
+            url,
+            'POST',
+            headers,
+            body,
+            signal,
+            stream ? {
+                noBuffer: true,
+                onData: (chunk) => {
+                    // Gemini streaming is SSE where each line starts with "data: "
+                    sseLineBuffer += chunk;
+                    let nlIdx = sseLineBuffer.indexOf('\n');
+                    while (nlIdx !== -1) {
+                        const rawLine = sseLineBuffer.slice(0, nlIdx);
+                        sseLineBuffer = sseLineBuffer.slice(nlIdx + 1);
+                        const line = rawLine.trimEnd();
+                        nlIdx = sseLineBuffer.indexOf('\n');
+
+                        if (!line.startsWith('data:')) continue;
+                        const dataStr = line.slice(5).trim();
+                        if (!dataStr) continue;
+
+                        try {
+                            const evt = JSON.parse(dataStr);
+                            const text = evt.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (typeof text !== 'string') continue;
+
+                            const delta = text.startsWith(lastText) ? text.slice(lastText.length) : text;
+                            lastText = text;
+
+                            if (delta) extractor?.push(delta);
+                        } catch {
+                            // Ignore parse errors while streaming
+                        }
+                    }
+                }
+            } : undefined
+        );
         const duration = Date.now() - startTime;
 
         // Log the response
@@ -427,8 +689,22 @@ export class AIClient {
             throw new Error(`Gemini API request failed: ${response.status} - ${response.body}`);
         }
 
-        const data = JSON.parse(response.body);
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        let content: string | undefined;
+        if (stream) {
+            content = lastText;
+            if (!content) {
+                // Fallback for non-streaming responses (or proxies) even when we hit the streaming endpoint.
+                try {
+                    const data = JSON.parse(response.body);
+                    content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch {
+                    content = undefined;
+                }
+            }
+        } else {
+            const data = JSON.parse(response.body);
+            content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        }
 
         if (!content) {
             debugLogger.logError('Gemini Response', 'Empty content in response');
@@ -470,6 +746,18 @@ export class AIClient {
 
             return result;
         } catch (parseError) {
+            // Fallback: some models prepend/append prose to the JSON (invalid). Try to recover the last JSON object.
+            const recovered = tryExtractJsonObject(jsonStr);
+            if (recovered && recovered.response) {
+                const result: AIResponse = {
+                    thought: recovered.thought || '',
+                    actions: Array.isArray(recovered.actions) ? recovered.actions : [],
+                    response: recovered.response
+                };
+                debugLogger.logParsing(content, result, true);
+                return result;
+            }
+
             // If we can't parse JSON, treat the whole thing as a text response
             // This is a fallback for when the AI doesn't follow the format
             debugLogger.logParsing(content, null, false);
