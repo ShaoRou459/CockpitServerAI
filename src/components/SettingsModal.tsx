@@ -224,7 +224,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     );
 
     const BehaviorPage = () => (
-        <Form className="settings-page-form">
+        <Form className="settings-page-form settings-page-form--behavior">
             <FormGroup label={_("Automation Level")} fieldId="settings-safety-mode">
                 <div className="safety-mode-grid">
                     {(Object.entries(SAFETY_MODES) as [SafetyMode, typeof SAFETY_MODES[SafetyMode]][]).map(([key, config]) => {
@@ -347,6 +347,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <HelperText>
                     <HelperTextItem>
                         {_("Show the assistant's response as it is generated (recommended)")}
+                    </HelperTextItem>
+                </HelperText>
+            </FormGroup>
+
+            <FormGroup fieldId="settings-restore-session-on-startup">
+                <Switch
+                    id="settings-restore-session-on-startup"
+                    label={_("Restore last session on startup")}
+                    isChecked={formData.restoreLastSessionOnStartup}
+                    onChange={(_e, checked) => updateField('restoreLastSessionOnStartup', checked)}
+                />
+                <HelperText>
+                    <HelperTextItem>
+                        {_("When disabled, opening the app always starts a new chat session")}
                     </HelperTextItem>
                 </HelperText>
             </FormGroup>

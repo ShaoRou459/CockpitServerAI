@@ -68,6 +68,7 @@ export interface Settings {
     temperature: number;
     outputTruncateLength: number;  // Max chars of command output to send to AI
     streamResponses: boolean;  // Stream AI responses into the UI as they arrive
+    restoreLastSessionOnStartup: boolean;
 
     // Safety settings
     commandBlocklist: string[];
@@ -97,6 +98,7 @@ export const DEFAULT_SETTINGS: Settings = {
     temperature: 0.7,
     outputTruncateLength: 8000,
     streamResponses: true,
+    restoreLastSessionOnStartup: false,
 
     commandBlocklist: [
         'rm -rf /',

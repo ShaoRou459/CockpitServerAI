@@ -198,6 +198,22 @@ form.settings-page-form {
     row-gap: 12px !important;
 }
 
+.settings-page-form--behavior.pf-v6-c-form,
+form.settings-page-form--behavior {
+    gap: 18px !important;
+    --pf-v6-c-form--m-horizontal--GridGap: 18px;
+    --pf-v6-c-form--GridGap: 18px;
+    row-gap: 18px !important;
+}
+
+.settings-page-form--behavior .pf-v6-c-form__group {
+    padding-bottom: 12px;
+}
+
+.settings-page-form--behavior .pf-v6-c-form__group:not(:last-child) {
+    border-bottom: 1px solid var(--ai-border-color);
+}
+
 /* ========================================
    SETTINGS MODAL - Multi-page Layout
    ======================================== */

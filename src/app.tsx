@@ -82,6 +82,7 @@ export const Application = () => {
     const agentPoolRef = useRef<Record<string, AgentController>>({});
 
     const contentRef = useRef<HTMLDivElement>(null);
+    const settingsRef = useRef<Settings>(DEFAULT_SETTINGS);
 
     const ensureTerminalMounted = useCallback((sessionId: string) => {
         setTerminalPool(prev => {
@@ -160,14 +161,18 @@ export const Application = () => {
     }, []);
 
     const getOrCreateAgent = useCallback((sessionId: string): { agent: AgentController; created: boolean } => {
+        const latestSettings = settingsRef.current;
         const existing = agentPoolRef.current[sessionId];
-        if (existing) return { agent: existing, created: false };
+        if (existing) {
+            existing.updateSettings(latestSettings);
+            return { agent: existing, created: false };
+        }
 
         const next = new AgentController();
-        next.updateSettings(settings);
+        next.updateSettings(latestSettings);
         agentPoolRef.current[sessionId] = next;
         return { agent: next, created: true };
-    }, [settings]);
+    }, []);
 
     const getActiveAgent = useCallback((): AgentController | null => {
         if (!activeSessionId) return null;
@@ -176,6 +181,7 @@ export const Application = () => {
 
     // Keep all per-session agents in sync with current settings.
     useEffect(() => {
+        settingsRef.current = settings;
         for (const a of Object.values(agentPoolRef.current)) {
             a.updateSettings(settings);
         }
@@ -190,47 +196,48 @@ export const Application = () => {
             if (!s.onboardingComplete) {
                 setOnboardingOpen(true);
             }
+
+            // Load sessions and decide startup behavior based on settings.
+            loadSessionList().then(sessionList => {
+                setSessions(sessionList);
+
+                if (s.restoreLastSessionOnStartup && sessionList.length > 0) {
+                    // Restore the most recent session
+                    loadSession(sessionList[0].id).then(session => {
+                        if (session) {
+                            setCurrentSession(session);
+                            ensureTerminalMounted(session.id);
+                            const { agent, created } = getOrCreateAgent(session.id);
+                            if (created) {
+                                agent.setConversationHistory(session.messages
+                                    .filter(m => m.role === 'user' || m.role === 'assistant')
+                                    .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })));
+                            }
+                            // Restore messages, converting date strings back to Date objects
+                            setMessages(session.messages.map(m => ({
+                                ...m,
+                                timestamp: new Date(m.timestamp)
+                            })));
+                        } else {
+                            // Session file was corrupted, create new
+                            const newSession = createSession();
+                            setCurrentSession(newSession);
+                            ensureTerminalMounted(newSession.id);
+                            getOrCreateAgent(newSession.id);
+                        }
+                    });
+                } else {
+                    // Start in a new session
+                    const newSession = createSession();
+                    setCurrentSession(newSession);
+                    ensureTerminalMounted(newSession.id);
+                    getOrCreateAgent(newSession.id);
+                }
+            });
         });
 
         const hostnameFile = cockpit.file('/etc/hostname');
         hostnameFile.watch(content => setHostname((content as string)?.trim() ?? 'unknown'));
-
-        // Load sessions and create/restore current session
-        loadSessionList().then(sessionList => {
-            setSessions(sessionList);
-            if (sessionList.length > 0) {
-                // Load the most recent session
-                loadSession(sessionList[0].id).then(session => {
-                    if (session) {
-                        setCurrentSession(session);
-                        ensureTerminalMounted(session.id);
-                        const { agent, created } = getOrCreateAgent(session.id);
-                        if (created) {
-                            agent.setConversationHistory(session.messages
-                                .filter(m => m.role === 'user' || m.role === 'assistant')
-                                .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })));
-                        }
-                        // Restore messages, converting date strings back to Date objects
-                        setMessages(session.messages.map(m => ({
-                            ...m,
-                            timestamp: new Date(m.timestamp)
-                        })));
-                    } else {
-                        // Session file was corrupted, create new
-                        const newSession = createSession();
-                        setCurrentSession(newSession);
-                        ensureTerminalMounted(newSession.id);
-                        getOrCreateAgent(newSession.id);
-                    }
-                });
-            } else {
-                // No sessions exist, create a new one
-                const newSession = createSession();
-                setCurrentSession(newSession);
-                ensureTerminalMounted(newSession.id);
-                getOrCreateAgent(newSession.id);
-            }
-        });
 
         return () => hostnameFile.close();
     }, []);
