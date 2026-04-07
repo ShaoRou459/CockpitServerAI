@@ -61,7 +61,6 @@ export const Application = () => {
     const [apiError, setApiError] = useState<ApiError | null>(null);
     const [errorModalOpen, setErrorModalOpen] = useState(false);
     const [lastUserMessage, setLastUserMessage] = useState<string>('');
-    const [terminalVisible, setTerminalVisible] = useState(true);
     const [chatPanelWidth, setChatPanelWidth] = useState(50); // percentage
     const [isResizing, setIsResizing] = useState(false);
 
@@ -69,7 +68,7 @@ export const Application = () => {
     const [sessions, setSessions] = useState<SessionMetadata[]>([]);
     const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const [sessionSaveTimeout, setSessionSaveTimeout] = useState<NodeJS.Timeout | null>(null);
+    const [sessionSaveTimeout, setSessionSaveTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
     const activeSessionId = currentSession?.id ?? null;
     const terminalReady = activeSessionId ? Boolean(terminalReadyBySession[activeSessionId]) : false;
@@ -255,7 +254,7 @@ export const Application = () => {
         requestAnimationFrame(() => {
             window.dispatchEvent(new Event('resize'));
         });
-    }, [activeSessionId, terminalVisible, chatPanelWidth]);
+    }, [activeSessionId, chatPanelWidth]);
 
     // Auto-save session when messages change (debounced)
     useEffect(() => {
@@ -305,20 +304,7 @@ export const Application = () => {
         }
     }, [settings]);
 
-    // Add welcome message on first load
-    useEffect(() => {
-        if (messages.length === 0 && hostname && settingsLoaded) {
-            const configured = settings.provider === 'custom'
-                ? Boolean(settings.baseUrl && settings.model)
-                : Boolean(settings.apiKey && settings.provider);
-            const status = configured ? 'Ready' : 'Not Configured';
-            setMessages([{
-                role: 'assistant',
-                content: `**${hostname}** | ${settings.model} | ${status}`,
-                timestamp: new Date()
-            }]);
-        }
-    }, [hostname, messages.length, settingsLoaded, settings]);
+    // Status bubble is now rendered in UI natively instead of injected as a message
 
     // Handle sending a message
     const handleSendMessage = useCallback(async (content: string) => {
@@ -674,10 +660,12 @@ export const Application = () => {
     // Check if API is configured
     const isConfigured = Boolean(settings.apiKey && settings.provider);
 
-    // Terminal toggle
+    // Terminal toggle via shortcut
     const toggleTerminal = useCallback(() => {
-        setTerminalVisible(prev => !prev);
+        setChatPanelWidth(prev => prev === 100 ? 50 : 100);
     }, []);
+
+
 
     // Resize handlers for draggable divider
     const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -692,9 +680,15 @@ export const Application = () => {
         const containerWidth = containerRect.width;
         const relativeX = clientX - containerRect.left;
 
-        // Calculate percentage, clamped between 25% and 75%
+        // Calculate percentage
         let percentage = (relativeX / containerWidth) * 100;
-        percentage = Math.max(25, Math.min(75, percentage));
+
+        // Snap to 100% (hidden terminal) if dragged past 90%
+        if (percentage > 90) {
+            percentage = 100;
+        } else {
+            percentage = Math.max(25, Math.min(85, percentage));
+        }
 
         setChatPanelWidth(percentage);
     }, []);
@@ -875,7 +869,11 @@ export const Application = () => {
                                 <span className="header-title">{_("AI Agent")}</span>
                             </FlexItem>
                             <FlexItem>
-                                <span className="header-hostname">@ {hostname || 'loading...'}</span>
+                                <div className="header-status-pill">
+                                    <span>{settings.model}</span>
+                                    <span style={{ opacity: 0.5, margin: '0 4px' }}>@</span>
+                                    <span>{hostname || 'loading...'}</span>
+                                </div>
                             </FlexItem>
                             {settings.safetyMode !== 'paranoid' && (() => {
                                 const config = SAFETY_MODES[settings.safetyMode];
@@ -924,18 +922,7 @@ export const Application = () => {
                                     </Button>
                                 </Tooltip>
                             </FlexItem>
-                            <FlexItem>
-                                <Tooltip content={terminalVisible ? _("Hide Terminal (Immersive Chat)") : _("Show Terminal")}>
-                                    <Button
-                                        variant="plain"
-                                        aria-label={terminalVisible ? "Hide Terminal" : "Show Terminal"}
-                                        onClick={toggleTerminal}
-                                        className={`header-settings-btn terminal-toggle-btn ${!terminalVisible ? 'terminal-toggle-btn--hidden' : ''}`}
-                                    >
-                                        {terminalVisible ? <ColumnsIcon /> : <TerminalIcon />}
-                                    </Button>
-                                </Tooltip>
-                            </FlexItem>
+
                             <FlexItem>
                                 <Button
                                     variant="plain"
@@ -962,18 +949,18 @@ export const Application = () => {
             </div>
 
             {/* Main Content - Split View */}
+        <div
+            className={`ai-agent-content ${isResizing ? 'ai-agent-content--resizing' : ''} ${chatPanelWidth === 100 ? 'ai-agent-content--full-chat' : ''}`}
+            ref={contentRef}
+        >
+            {/* Chat Panel - Left Side */}
             <div
-                className={`ai-agent-content ${isResizing ? 'ai-agent-content--resizing' : ''} ${!terminalVisible ? 'ai-agent-content--full-chat' : ''}`}
-                ref={contentRef}
+                className="ai-agent-chat"
+                style={{
+                    flex: `0 0 ${chatPanelWidth === 100 ? 'calc(100% - 10px)' : chatPanelWidth + '%'}`,
+                    maxWidth: chatPanelWidth === 100 ? 'calc(100% - 10px)' : `${chatPanelWidth}%`
+                }}
             >
-                {/* Chat Panel - Left Side */}
-                <div
-                    className="ai-agent-chat"
-                    style={{
-                        flex: terminalVisible ? `0 0 ${chatPanelWidth}%` : '1 1 100%',
-                        maxWidth: terminalVisible ? `${chatPanelWidth}%` : '100%'
-                    }}
-                >
                     <ChatPanel
                         messages={messages}
                         isProcessing={isProcessing}
@@ -988,32 +975,30 @@ export const Application = () => {
                 </div>
 
                 {/* Resizable Divider */}
-                {terminalVisible && (
-                    <div
-                        className={`resize-divider ${isResizing ? 'resize-divider--active' : ''}`}
-                        onMouseDown={handleResizeStart}
-                        onTouchStart={handleResizeStart}
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-label="Resize panels"
-                        tabIndex={0}
-                    >
-                        <div className="resize-divider__handle">
-                            <div className="resize-divider__dots">
-                                <span></span>
-                                <span></span>
-                                <span></span>
-                            </div>
+                <div
+                    className={`resize-divider ${isResizing ? 'resize-divider--active' : ''}`}
+                    onMouseDown={handleResizeStart}
+                    onTouchStart={handleResizeStart}
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize panels"
+                    tabIndex={0}
+                >
+                    <div className="resize-divider__handle">
+                        <div className="resize-divider__dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
                         </div>
                     </div>
-                )}
+                </div>
 
                 {/* Terminal View - Right Side (per-chat terminal sessions, LRU-capped) */}
                 <div
                     className="ai-agent-terminal"
                     style={{
                         flex: `0 0 ${100 - chatPanelWidth}%`,
-                        display: terminalVisible ? 'flex' : 'none',
+                        display: chatPanelWidth === 100 ? 'none' : 'flex',
                         position: 'relative',
                     }}
                 >

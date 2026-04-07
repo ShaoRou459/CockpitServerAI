@@ -35,8 +35,8 @@ interface ProcessOptions {
     executeCommand: CommandExecutor;  // Execute command via terminal
 }
 
-// Maximum iterations to prevent infinite loops
-const MAX_ITERATIONS = 10;
+// Default max iterations (overridden by settings.maxExecutionSteps)
+const DEFAULT_MAX_ITERATIONS = 10;
 
 export class AgentController {
     private aiClient: AIClient;
@@ -99,8 +99,10 @@ export class AgentController {
             let iteration = 0;
             let finalResponse = '';
 
+            const maxSteps = this.settings.maxExecutionSteps || DEFAULT_MAX_ITERATIONS;
+
             // Multi-step execution loop
-            while (iteration < MAX_ITERATIONS) {
+            while (iteration < maxSteps) {
                 iteration++;
 
                 // Send to AI
@@ -119,6 +121,16 @@ export class AgentController {
 
                 // If no actions, we're done
                 if (!aiResponse.actions || aiResponse.actions.length === 0) {
+                    this.conversationHistory.push({
+                        role: 'assistant',
+                        content: aiResponse.response
+                    });
+                    finalResponse = aiResponse.response;
+                    break;
+                }
+
+                // If ask_user is present, abort execution and wait for user response
+                if (aiResponse.actions.some(a => a.type === 'ask_user')) {
                     this.conversationHistory.push({
                         role: 'assistant',
                         content: aiResponse.response
@@ -167,7 +179,7 @@ export class AgentController {
                 finalResponse = aiResponse.response;
             }
 
-            if (iteration >= MAX_ITERATIONS) {
+            if (iteration >= maxSteps) {
                 console.warn('Agent reached maximum iterations');
                 this.conversationHistory.push({
                     role: 'assistant',
@@ -378,6 +390,22 @@ export class AgentController {
         onOutput(`\n📝 Writing to: ${path}\n`);
 
         try {
+            // First ensure the parent directory exists
+            const lastSlashIndex = actualPath.lastIndexOf('/');
+            if (lastSlashIndex > 0) {
+                const dirPath = actualPath.substring(0, lastSlashIndex);
+                try {
+                    await new Promise<void>((resolve, reject) => {
+                        cockpit.spawn(['mkdir', '-p', dirPath], { superuser: 'try' })
+                            .then(() => resolve())
+                            .catch(reject);
+                    });
+                } catch (e) {
+                    // Just log and proceed; file.replace might still work or will throw its own error
+                    console.warn(`Attempt to create directory ${dirPath} returned:`, e);
+                }
+            }
+
             const file = cockpit.file(actualPath, { superuser: 'try' });
             await file.replace(actualContent);
             file.close();
@@ -466,7 +494,7 @@ ${parts.join('\n\n---\n\n')}
 
 Based on these results, decide the next steps.
 
-IMPORTANT: Your entire next assistant message MUST be a single valid JSON object matching the required schema (no prose before/after). If you need to explain anything to the user, put it inside the "response" string. If no more commands are needed, set "actions" to an empty array.`;
+IMPORTANT: Respond naturally to the user. If you need to execute commands, provide them as a JSON array inside a \`\`\`json block at the end of your response. If no more commands are needed, just omit the JSON block.`;
     }
 
     private buildSystemPrompt(context: SystemContext): string {
@@ -478,31 +506,33 @@ IMPORTANT: Your entire next assistant message MUST be a single valid JSON object
 - Timestamp: ${new Date().toISOString()}
 
 ## Response Format
-You MUST respond with valid JSON in this exact format:
-{
-  "thought": "Your internal reasoning about what you need to do",
-  "actions": [
-    {
-      "type": "command",
-      "command": "the shell command to run",
-      "description": "brief description of what this does",
-      "risk_level": "low"
-    }
-  ],
-  "response": "Your message to the user explaining what you're doing or answering their question"
-}
+Answer the user naturally. You can use markdown styling, code blocks, and multi-paragraph formatting.
+If you need to execute commands, file operations, or services, append them at the very end of your response wrapped in a \`\`\`json block. Include your reasoning in <thought> tags if needed.
 
-CRITICAL FORMATTING RULES (non-negotiable):
-- Output ONLY the JSON object. Do not output any other text before or after it.
-- Do NOT wrap the JSON in markdown code fences.
-- If you want to show markdown/code blocks to the user, include them inside the "response" string value.
-- Never repeat the "response" text outside the JSON object.
+Example response:
+<thought>I need to check the OS details to know what package manager to use.</thought>
+I will check the operating system details for you now!
+\`\`\`json
+[
+  {
+    "type": "command",
+    "command": "cat /etc/os-release",
+    "description": "Checking OS version",
+    "risk_level": "low"
+  }
+]
+\`\`\`
+
+CRITICAL FORMATTING RULES:
+- The \`\`\`json block must contain an Array of action objects.
+- If you don't need to perform any commands, simply omit the json block entirely.
 
 ## Action Types
 - command: Execute a shell command
 - file_read: Read a file (use "path" field instead of "command")
 - file_write: Write to a file (use "path" and "content" fields)
 - service: Manage systemd service (use "service" and "operation" fields, operation: start|stop|restart|status)
+- ask_user: Ask the user a question and wait for their response (use "question" field). DO NOT queue any other commands after this!
 
 ## Risk Levels - BE ACCURATE
 - low: Read-only, informational commands (ls, cat, df, ps, top, journalctl, systemctl status)
@@ -538,8 +568,8 @@ When a command is interactive, I will show your hint to the user so they know to
 4. Break complex tasks into steps - you can run multiple commands
 5. If a task is unclear, ask for clarification instead of guessing
 6. When reporting command results, summarize key findings
-7. If you don't need to run any commands, use an empty actions array
-8. You can run multiple commands in sequence for complex tasks
+7. If you don't need to run any commands, omit the json block.
+8. You can run multiple commands in sequence for complex tasks, just add multiple items to the json array.
 
 ## Secret Handling
 - Sensitive data (passwords, API keys, tokens, private keys) is automatically detected and redacted
@@ -550,8 +580,6 @@ When a command is interactive, I will show your hint to the user so they know to
 - Treat the placeholder as if it were the real secret in your reasoning
 
 ## IMPORTANT
-- Always respond with valid JSON, nothing else
-- Never include markdown formatting around the JSON
 - Be conservative with risk levels - when in doubt, use a higher level
 - Never try to decode, guess, or ask about the actual values of secret placeholders`;
     }

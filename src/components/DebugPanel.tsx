@@ -73,6 +73,41 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ isOpen, onClose }) => {
     const logsEndRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    // Dragging state
+    const [position, setPosition] = useState<{ x: number | null, y: number | null }>({ x: null, y: null });
+    const dragStart = useRef<{ x: number, y: number } | null>(null);
+
+    const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.debug-panel__header')) return;
+        if (target.closest('.debug-panel__btn')) return;
+
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        dragStart.current = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        target.setPointerCapture(e.pointerId);
+    }, []);
+
+    const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!dragStart.current) return;
+        setPosition({
+            x: e.clientX - dragStart.current.x,
+            y: e.clientY - dragStart.current.y
+        });
+    }, []);
+
+    const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        dragStart.current = null;
+        const target = e.target as HTMLElement;
+        if (target.hasPointerCapture(e.pointerId)) {
+            target.releasePointerCapture(e.pointerId);
+        }
+    }, []);
+
     // Subscribe to log updates
     useEffect(() => {
         // Load existing entries
@@ -132,10 +167,28 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ isOpen, onClose }) => {
 
     if (!isOpen) return null;
 
+    const style: React.CSSProperties = {};
+    if (position.x !== null && position.y !== null) {
+        style.left = `${position.x}px`;
+        style.top = `${position.y}px`;
+        style.right = 'auto';
+        style.bottom = 'auto';
+        style.transform = 'none';
+        style.margin = 0;
+    }
+
     return (
-        <div className="debug-panel" ref={containerRef}>
+        <div 
+            className="debug-panel" 
+            ref={containerRef}
+            style={style}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+        >
             {/* Header */}
-            <div className="debug-panel__header">
+            <div className="debug-panel__header" style={{ cursor: 'grab' }}>
                 <Flex alignItems={{ default: 'alignItemsCenter' }} spaceItems={{ default: 'spaceItemsSm' }}>
                     <FlexItem>
                         <BugIcon className="debug-panel__icon" />
@@ -355,7 +408,27 @@ const LogEntryRow: React.FC<{
             </button>
             {isExpanded && hasData && (
                 <div className="debug-entry__data">
-                    <pre>{JSON.stringify(entry.data, null, 2)}</pre>
+                    {entry.category === 'ai-parse' ? (
+                        <>
+                            <div style={{ marginBottom: '8px', color: 'var(--pf-v5-global--primary-color--100)' }}><strong>Raw Output:</strong></div>
+                            <pre style={{ marginBottom: '16px', background: 'var(--pf-v5-global--BackgroundColor--light-300)', padding: '8px', borderRadius: '4px', border: '1px solid var(--pf-v5-global--BorderColor--100)', whiteSpace: 'pre-wrap' }}>
+                                {entry.data.raw}
+                            </pre>
+                            <div style={{ marginBottom: '8px', color: 'var(--pf-v5-global--primary-color--100)' }}><strong>Parsed Instructions:</strong></div>
+                            <pre style={{ background: 'var(--pf-v5-global--BackgroundColor--dark-transparent-100)', padding: '8px', borderRadius: '4px' }}>
+                                {JSON.stringify(entry.data.parsed, null, 2)}
+                            </pre>
+                        </>
+                    ) : entry.category === 'action' ? (
+                        <>
+                            <div style={{ marginBottom: '8px', color: 'var(--pf-v5-global--primary-color--100)' }}><strong>Action Execution:</strong></div>
+                            <pre style={{ background: 'var(--pf-v5-global--BackgroundColor--dark-transparent-100)', padding: '8px', borderRadius: '4px' }}>{JSON.stringify(entry.data, null, 2)}</pre>
+                        </>
+                    ) : (
+                        <pre style={{ background: 'var(--pf-v5-global--BackgroundColor--dark-transparent-100)', padding: '8px', borderRadius: '4px', whiteSpace: 'pre-wrap' }}>
+                            {JSON.stringify(entry.data, null, 2)}
+                        </pre>
+                    )}
                 </div>
             )}
         </div>

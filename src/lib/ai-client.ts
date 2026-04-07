@@ -94,151 +94,7 @@ export interface SendMessageOptions {
     onResponseStream?: (text: string) => void; // Streams the parsed "response" field (not raw JSON)
 }
 
-function createJsonResponseFieldExtractor(onUpdate: (text: string) => void) {
-    // Incrementally extracts and decodes the JSON string value of the "response" field.
-    // Assumes the model output is valid JSON (as prompted).
-    let searchBuffer = '';
-    let inResponseString = false;
-    let escape = false;
-    let unicodeBuf: string | null = null;
-    let decoded = '';
-
-    const RESPONSE_KEY_RE = /"response"\s*:\s*"/g;
-
-    const push = (chunk: string) => {
-        if (!chunk) return;
-
-        if (!inResponseString) {
-            searchBuffer += chunk;
-            // Cap buffer so it doesn't grow unbounded if "response" is late.
-            if (searchBuffer.length > 20000) {
-                searchBuffer = searchBuffer.slice(-20000);
-            }
-
-            const match = RESPONSE_KEY_RE.exec(searchBuffer);
-            if (!match) return;
-
-            const start = match.index + match[0].length;
-            const remainder = searchBuffer.slice(start);
-            searchBuffer = '';
-            inResponseString = true;
-            if (remainder) push(remainder);
-            return;
-        }
-
-        for (let i = 0; i < chunk.length; i++) {
-            const ch = chunk[i];
-
-            if (unicodeBuf !== null) {
-                unicodeBuf += ch;
-                if (unicodeBuf.length === 4) {
-                    const code = parseInt(unicodeBuf, 16);
-                    if (!Number.isNaN(code)) decoded += String.fromCharCode(code);
-                    unicodeBuf = null;
-                    onUpdate(decoded);
-                }
-                continue;
-            }
-
-            if (escape) {
-                escape = false;
-                switch (ch) {
-                    case 'n': decoded += '\n'; break;
-                    case 'r': decoded += '\r'; break;
-                    case 't': decoded += '\t'; break;
-                    case '"': decoded += '"'; break;
-                    case '\\': decoded += '\\'; break;
-                    case '/': decoded += '/'; break;
-                    case 'u':
-                        unicodeBuf = '';
-                        break;
-                    default:
-                        decoded += ch;
-                }
-                onUpdate(decoded);
-                continue;
-            }
-
-            if (ch === '\\') {
-                escape = true;
-                continue;
-            }
-
-            if (ch === '"') {
-                // End of the response string
-                inResponseString = false;
-                onUpdate(decoded);
-                return;
-            }
-
-            decoded += ch;
-            onUpdate(decoded);
-        }
-    };
-
-    const reset = () => {
-        searchBuffer = '';
-        inResponseString = false;
-        escape = false;
-        unicodeBuf = null;
-        decoded = '';
-        onUpdate('');
-    };
-
-    return { push, reset };
-}
-
-function tryExtractJsonObject(text: string): any | null {
-    // Attempts to find and parse the last valid JSON object within an arbitrary string.
-    // This is a fallback for models that (incorrectly) emit prose before/after JSON.
-    let inString = false;
-    let escape = false;
-    let depth = 0;
-    let start = -1;
-    let lastCandidate: string | null = null;
-
-    for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-
-        if (escape) {
-            escape = false;
-            continue;
-        }
-
-        if (ch === '\\') {
-            if (inString) escape = true;
-            continue;
-        }
-
-        if (ch === '"') {
-            inString = !inString;
-            continue;
-        }
-
-        if (inString) continue;
-
-        if (ch === '{') {
-            if (depth === 0) start = i;
-            depth++;
-            continue;
-        }
-
-        if (ch === '}') {
-            if (depth > 0) depth--;
-            if (depth === 0 && start !== -1) {
-                lastCandidate = text.slice(start, i + 1);
-                start = -1;
-            }
-        }
-    }
-
-    if (!lastCandidate) return null;
-    try {
-        return JSON.parse(lastCandidate);
-    } catch {
-        return null;
-    }
-}
+    // Removed legacy JSON stream extractors
 
 // Helper function to make HTTP requests via curl
 async function httpRequest(
@@ -499,9 +355,6 @@ export class AIClient {
             messages: requestMessages,
         });
 
-        const extractor = onResponseStream ? createJsonResponseFieldExtractor(onResponseStream) : null;
-        if (extractor && stream) extractor.reset();
-
         let streamedContent = '';
         let sseLineBuffer = '';
 
@@ -532,7 +385,7 @@ export class AIClient {
                             const delta = evt.choices?.[0]?.delta?.content;
                             if (typeof delta === 'string' && delta.length > 0) {
                                 streamedContent += delta;
-                                extractor?.push(delta);
+                                onResponseStream?.(streamedContent);
                             }
                         } catch {
                             // Ignore parse errors while streaming
@@ -630,9 +483,6 @@ export class AIClient {
             contents: contents,
         });
 
-        const extractor = onResponseStream ? createJsonResponseFieldExtractor(onResponseStream) : null;
-        if (extractor && stream) extractor.reset();
-
         let sseLineBuffer = '';
         let lastText = '';
 
@@ -666,7 +516,7 @@ export class AIClient {
                             const delta = text.startsWith(lastText) ? text.slice(lastText.length) : text;
                             lastText = text;
 
-                            if (delta) extractor?.push(delta);
+                            if (delta) onResponseStream?.(lastText);
                         } catch {
                             // Ignore parse errors while streaming
                         }
@@ -715,62 +565,39 @@ export class AIClient {
     }
 
     private parseAIResponse(content: string): AIResponse {
-        // Try to extract JSON from the response
-        // The AI might wrap JSON in markdown code blocks
-        let jsonStr = content;
+        // Extract thought
+        let thought = '';
+        const thoughtMatch = content.match(/<thought>([\s\S]*?)<\/thought>/);
+        if (thoughtMatch) {
+            thought = thoughtMatch[1].trim();
+        }
 
-        // Check for markdown code blocks
+        // Extract actions
+        let actions: any[] = [];
         const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (jsonMatch) {
-            jsonStr = jsonMatch[1].trim();
-            debugLogger.log('debug', 'ai-parse', 'Extracted JSON', 'Found JSON in markdown code block');
+            try {
+                const parsed = JSON.parse(jsonMatch[1].trim());
+                if (Array.isArray(parsed)) {
+                    actions = parsed;
+                }
+            } catch (e) {
+                debugLogger.log('warn', 'ai-parse', 'Failed to parse JSON actions block', e instanceof Error ? e.message : String(e));
+            }
         }
 
-        try {
-            const parsed = JSON.parse(jsonStr);
+        // Clean response by stripping json and thought
+        let responseText = content.replace(/```(?:json)?\s*[\s\S]*?```/, '').trim();
+        responseText = responseText.replace(/<thought>([\s\S]*?)<\/thought>/, '').trim();
 
-            // Validate the response structure
-            if (!parsed.response) {
-                debugLogger.log('warn', 'ai-parse', 'Parse Warning', 'Response missing "response" field', { parsed });
-                throw new Error('Response missing required "response" field');
-            }
+        const result: AIResponse = {
+            thought,
+            actions,
+            response: responseText || content
+        };
 
-            const result: AIResponse = {
-                thought: parsed.thought || '',
-                actions: Array.isArray(parsed.actions) ? parsed.actions : [],
-                response: parsed.response
-            };
+        debugLogger.logParsing(content, result, true);
 
-            // Log successful parse with details
-            debugLogger.logParsing(content, result, true);
-
-            return result;
-        } catch (parseError) {
-            // Fallback: some models prepend/append prose to the JSON (invalid). Try to recover the last JSON object.
-            const recovered = tryExtractJsonObject(jsonStr);
-            if (recovered && recovered.response) {
-                const result: AIResponse = {
-                    thought: recovered.thought || '',
-                    actions: Array.isArray(recovered.actions) ? recovered.actions : [],
-                    response: recovered.response
-                };
-                debugLogger.logParsing(content, result, true);
-                return result;
-            }
-
-            // If we can't parse JSON, treat the whole thing as a text response
-            // This is a fallback for when the AI doesn't follow the format
-            debugLogger.logParsing(content, null, false);
-            debugLogger.log('warn', 'ai-parse', 'JSON Parse Failed',
-                parseError instanceof Error ? parseError.message : 'Unknown error',
-                { rawContent: content.substring(0, 500) }
-            );
-
-            return {
-                thought: '',
-                actions: [],
-                response: content
-            };
-        }
+        return result;
     }
 }

@@ -59,11 +59,11 @@ const purifyConfig = {
     ],
     ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
     ALLOW_DATA_ATTR: false,
-    ADD_ATTR: ['target'], // Allow target for links
+    ADD_ATTR: ['target'] as string[],
     FORBID_TAGS: ['script', 'style', 'iframe', 'form', 'input', 'object', 'embed'],
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
     RETURN_TRUSTED_TYPE: false,  // Return string, not TrustedHTML
-} as const;
+};
 
 // Sanitize HTML content
 function sanitizeHtml(dirty: string): string {
@@ -219,8 +219,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return (
         <Card style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Messages Area */}
-            <CardBody style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-                <div className="chat-messages">
+            <CardBody style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column' }}>
+                <div className="chat-messages" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    {messages.length === 0 && !isProcessing && !pendingAction && (
+                        <div className="chat-empty-state">
+                            <h2 className="chat-empty-state__title">{_("How can I help you today?")}</h2>
+                            <p className="chat-empty-state__hint">{_("Ask me to run commands, check system status, or troubleshoot issues.")}</p>
+                        </div>
+                    )}
                     {messages.map((message, index) => (
                         <MessageBubble key={index} message={message} />
                     ))}
@@ -393,24 +399,22 @@ const InlineApproval: React.FC<{
                     </button>
                 </div>
             </div>
-            {expanded && (
-                <div className="action-compact-details">
-                    <div className="action-compact-description">
-                        {action.description}
-                    </div>
-                    {action.type === 'file_write' && action.content && (
-                        <FileContentCollapsible
-                            label="Content to Write"
-                            content={action.content}
-                        />
-                    )}
-                    {action.risk_level === 'critical' && (
-                        <div className="approval-compact-warning">
-                            Critical operation - review carefully
-                        </div>
-                    )}
+            <div className={`action-compact-details ${expanded ? 'action-compact-details--open' : ''}`}>
+                <div className="action-compact-description">
+                    {action.description}
                 </div>
-            )}
+                {action.type === 'file_write' && action.content && (
+                    <FileContentCollapsible
+                        label="Content to Write"
+                        content={action.content}
+                    />
+                )}
+                {action.risk_level === 'critical' && (
+                    <div className="approval-compact-warning">
+                        Critical operation - review carefully
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
@@ -470,44 +474,42 @@ const ActionBubble: React.FC<{ message: Message }> = ({ message }) => {
                 </span>
                 <code className="action-compact-command">{getPrimaryText()}</code>
             </button>
-            {expanded && (
-                <div className="action-compact-details">
-                    <div className="action-compact-description">
-                        {action.description}
-                    </div>
-                    {state === 'running' && (
-                        <div className="action-compact-running">
-                            Running... (watch the terminal for live output)
-                        </div>
-                    )}
-                    {/* Command output */}
-                    {action.type === 'command' && message.result?.stdout && (
-                        <div className="action-compact-output">
-                            <pre>{message.result.stdout}</pre>
-                        </div>
-                    )}
-                    {/* Error output */}
-                    {message.result?.stderr && (
-                        <div className="action-compact-output error">
-                            <pre>{message.result.stderr}</pre>
-                        </div>
-                    )}
-                    {/* File write content */}
-                    {action.type === 'file_write' && action.content && (
-                        <FileContentCollapsible
-                            label="Content Written"
-                            content={action.content}
-                        />
-                    )}
-                    {/* File read content */}
-                    {action.type === 'file_read' && message.result?.stdout && (
-                        <FileContentCollapsible
-                            label="Content Read"
-                            content={message.result.stdout}
-                        />
-                    )}
+            <div className={`action-compact-details ${expanded ? 'action-compact-details--open' : ''}`}>
+                <div className="action-compact-description">
+                    {action.description}
                 </div>
-            )}
+                {state === 'running' && (
+                    <div className="action-compact-running">
+                        Running... (watch the terminal for live output)
+                    </div>
+                )}
+                {/* Command output */}
+                {action.type === 'command' && message.result?.stdout && (
+                    <div className="action-compact-output">
+                        <pre>{message.result.stdout}</pre>
+                    </div>
+                )}
+                {/* Error output */}
+                {message.result?.stderr && (
+                    <div className="action-compact-output error">
+                        <pre>{message.result.stderr}</pre>
+                    </div>
+                )}
+                {/* File write content */}
+                {action.type === 'file_write' && action.content && (
+                    <FileContentCollapsible
+                        label="Content Written"
+                        content={action.content}
+                    />
+                )}
+                {/* File read content */}
+                {action.type === 'file_read' && message.result?.stdout && (
+                    <FileContentCollapsible
+                        label="Content Read"
+                        content={message.result.stdout}
+                    />
+                )}
+            </div>
         </div>
     );
 };
@@ -581,8 +583,14 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
             ));
         } else {
             // Assistant messages: parse markdown and sanitize
-            const rawHtml = marked.parse(message.content) as string;
+            const jsonMatch = message.content.match(/```(?:json)?\s*\[\s*\{[\s\S]*?\}\s*\]\s*```/);
+            const rawJsonContent = jsonMatch ? jsonMatch[0] : null;
+            
+            const cleanContent = rawJsonContent ? message.content.replace(rawJsonContent, '').trim() : message.content;
+            
+            const rawHtml = marked.parse(cleanContent) as string;
             const safeHtml = sanitizeHtml(rawHtml);
+            
             return (
                 <div
                     className="markdown-content"

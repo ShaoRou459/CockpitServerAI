@@ -17,12 +17,13 @@ export interface Message {
 
 // Action that AI wants to perform
 export interface Action {
-    type: 'command' | 'file_read' | 'file_write' | 'service';
+    type: 'command' | 'file_read' | 'file_write' | 'service' | 'ask_user';
     command?: string;
     path?: string;
     content?: string;
     service?: string;
     operation?: 'start' | 'stop' | 'restart' | 'status';
+    question?: string; // Used for ask_user action
     description: string;
     risk_level: RiskLevel;
     interactive?: boolean;  // True if command may require user input (sudo, ssh, etc.)

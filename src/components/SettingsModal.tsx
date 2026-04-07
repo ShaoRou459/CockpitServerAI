@@ -93,6 +93,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showApiKey, setShowApiKey] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [useCustomModel, setUseCustomModel] = useState(false);
+    const [isClosing, setIsClosing] = useState(false);
 
     // Reset form when modal opens
     useEffect(() => {
@@ -100,11 +101,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             setFormData(settings);
             setShowApiKey(false);
             setActivePage('provider');
+            setIsClosing(false);
             // Detect if current model is custom
             const providerModels = PROVIDERS[settings.provider]?.models || [];
             setUseCustomModel(!providerModels.includes(settings.model));
         }
     }, [isOpen, settings]);
+
+    const handleAnimatedClose = () => {
+        if (isClosing) return;
+        setIsClosing(true);
+        setTimeout(() => {
+            setIsClosing(false);
+            onClose();
+        }, 200);
+    };
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -337,6 +348,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </HelperText>
             </FormGroup>
 
+            <FormGroup label={_("Max Execution Steps")} fieldId="settings-max-steps">
+                <Split hasGutter>
+                    <SplitItem isFilled>
+                        <input
+                            type="range"
+                            id="settings-max-steps-slider"
+                            min={1}
+                            max={50}
+                            step={1}
+                            value={formData.maxExecutionSteps}
+                            onChange={(e) => updateField('maxExecutionSteps', parseInt(e.target.value))}
+                            className="settings-slider"
+                        />
+                    </SplitItem>
+                    <SplitItem>
+                        <span className="settings-slider-value">{formData.maxExecutionSteps}</span>
+                    </SplitItem>
+                </Split>
+                <HelperText>
+                    <HelperTextItem>
+                        {_("Maximum action-loop iterations per request before the agent stops (prevents runaway tasks)")}
+                    </HelperTextItem>
+                </HelperText>
+            </FormGroup>
+
             <FormGroup fieldId="settings-stream-responses">
                 <Switch
                     id="settings-stream-responses"
@@ -504,15 +540,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const renderPageContent = () => {
         switch (activePage) {
             case 'provider':
-                return <ProviderPage />;
+                return ProviderPage();
             case 'behavior':
-                return <BehaviorPage />;
+                return BehaviorPage();
             case 'security':
-                return <SecurityPage />;
+                return SecurityPage();
             case 'developer':
-                return <DeveloperPage />;
+                return DeveloperPage();
             case 'about':
-                return <AboutPage />;
+                return AboutPage();
             default:
                 return null;
         }
@@ -521,10 +557,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return (
         <Modal
             isOpen={isOpen}
-            onClose={onClose}
+            onClose={handleAnimatedClose}
             aria-labelledby="settings-modal-title"
             variant="large"
-            className="settings-modal"
+            className={`settings-modal ${isClosing ? 'settings-modal--closing' : ''}`}
         >
             <ModalHeader labelId="settings-modal-title">
                 <div className="settings-modal-header">
@@ -532,7 +568,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button
                         type="button"
                         className="settings-modal-close"
-                        onClick={onClose}
+                        onClick={handleAnimatedClose}
                         aria-label={_("Close")}
                     >
                         <TimesIcon />
@@ -562,7 +598,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </nav>
 
                     {/* Page Content */}
-                    <div className="settings-content">
+                    <div className="settings-content" key={activePage}>
                         <h3 className="settings-page-title">
                             {_(PAGES.find(p => p.id === activePage)?.label || '')}
                         </h3>
@@ -580,7 +616,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                     {_("Save")}
                 </Button>
-                <Button variant="link" onClick={onClose}>
+                <Button variant="link" onClick={handleAnimatedClose}>
                     {_("Cancel")}
                 </Button>
             </ModalFooter>
