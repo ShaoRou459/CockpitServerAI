@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Flex, FlexItem, Button, Tooltip } from "@patternfly/react-core";
+import { Flex, FlexItem, Button, Tooltip, Dropdown, DropdownItem, DropdownList, MenuToggle } from "@patternfly/react-core";
 import { CogIcon, RocketIcon, LockIcon, ShieldAltIcon, BoltIcon, SkullIcon, MoonIcon, SunIcon, BugIcon, TerminalIcon, ColumnsIcon, HistoryIcon } from "@patternfly/react-icons";
 import cockpit from 'cockpit';
 
@@ -63,6 +63,7 @@ export const Application = () => {
     const [lastUserMessage, setLastUserMessage] = useState<string>('');
     const [chatPanelWidth, setChatPanelWidth] = useState(50); // percentage
     const [isResizing, setIsResizing] = useState(false);
+    const [safetyDropdownOpen, setSafetyDropdownOpen] = useState(false);
 
     // Session state
     const [sessions, setSessions] = useState<SessionMetadata[]>([]);
@@ -317,6 +318,11 @@ export const Application = () => {
         ensureTerminalMounted(sessionId);
         const { agent: activeAgent } = getOrCreateAgent(sessionId);
 
+        // Prevent overlapping executions from rapid double-clicks
+        if (activeAgent.isRequestInProgress()) {
+            return;
+        }
+
         // Add user message
         const userMessage: Message = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -388,8 +394,16 @@ export const Application = () => {
             const safetyConfig = SAFETY_MODES[settings.safetyMode];
             const autoApproveLevels = safetyConfig.autoApprove;
 
+            // Get terminal context
+            let terminalContext = '';
+            const handle = terminalHandlesRef.current[sessionId];
+            if (handle) {
+                terminalContext = handle.getVisibleText();
+            }
+
             const response = await activeAgent.processMessage(content, {
                 hostname,
+                terminalContext,
                 onAction: (action) => {
                     // Check if this risk level should be auto-approved based on safety mode
                     const riskLevel = action.risk_level as RiskLevel;
@@ -598,6 +612,15 @@ export const Application = () => {
                     isError: true
                 };
                 setMessages(prev => [...prev, errorMessage]);
+            } else if ((error instanceof DOMException && error.name === 'AbortError') || (error instanceof Error && error.message === 'AbortError')) {
+                // User aborted the execution, either via fetch AbortController or our application flag
+                const stopMessage: Message = {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    role: 'assistant',
+                    content: `_Execution stopped._`,
+                    timestamp: new Date()
+                };
+                setMessages(prev => [...prev, stopMessage]);
             } else {
                 // Handle other errors normally
                 const errorMessage: Message = {
@@ -632,8 +655,11 @@ export const Application = () => {
     // Handle stop processing - abort in-flight requests
     const handleStop = useCallback(() => {
         getActiveAgent()?.abort();
+        if (pendingAction) {
+            pendingAction.onDeny();
+        }
         setIsProcessing(false);
-    }, [getActiveAgent]);
+    }, [getActiveAgent, pendingAction]);
 
     const toggleTheme = () => {
         const newTheme = settings.theme === 'light' ? 'dark' : 'light';
@@ -641,6 +667,13 @@ export const Application = () => {
         setSettings(newSettings);
         saveSettings(newSettings);
     };
+
+    const handleChangeSafetyMode = useCallback((mode: string) => {
+        const newSettings = { ...settings, safetyMode: mode as any };
+        setSettings(newSettings);
+        saveSettings(newSettings);
+        setSafetyDropdownOpen(false);
+    }, [settings]);
 
     const handleClearSecrets = useCallback(() => {
         // Secrets are managed globally, so clearing on any controller is sufficient; clear all for consistency.
@@ -875,15 +908,44 @@ export const Application = () => {
                                     <span>{hostname || 'loading...'}</span>
                                 </div>
                             </FlexItem>
-                            {settings.safetyMode !== 'paranoid' && (() => {
+                            {(() => {
                                 const config = SAFETY_MODES[settings.safetyMode];
                                 const IconComponent = SAFETY_ICONS[config.icon];
                                 return (
                                     <FlexItem>
-                                        <span className={`safety-badge safety-badge--${config.variant}`}>
-                                            <IconComponent className="safety-badge-icon" />
-                                            {config.name}
-                                        </span>
+                                        <Dropdown
+                                            isOpen={safetyDropdownOpen}
+                                            onSelect={() => setSafetyDropdownOpen(false)}
+                                            onOpenChange={(isOpen: boolean) => setSafetyDropdownOpen(isOpen)}
+                                            toggle={(toggleRef: any) => (
+                                                <MenuToggle
+                                                    ref={toggleRef}
+                                                    onClick={() => setSafetyDropdownOpen(!safetyDropdownOpen)}
+                                                    isExpanded={safetyDropdownOpen}
+                                                    variant="plainText"
+                                                    className={`safety-badge safety-badge--${config.variant}`}
+                                                >
+                                                    <IconComponent className="safety-badge-icon" />
+                                                    {config.name}
+                                                </MenuToggle>
+                                            )}
+                                        >
+                                            <DropdownList>
+                                                {Object.entries(SAFETY_MODES).map(([key, modeConfig]) => {
+                                                    const ModeIcon = SAFETY_ICONS[modeConfig.icon];
+                                                    return (
+                                                        <DropdownItem
+                                                            key={key}
+                                                            value={key}
+                                                            onClick={() => handleChangeSafetyMode(key)}
+                                                        >
+                                                            <ModeIcon className="pf-v6-u-mr-sm" />
+                                                            {modeConfig.name}
+                                                        </DropdownItem>
+                                                    );
+                                                })}
+                                            </DropdownList>
+                                        </Dropdown>
                                     </FlexItem>
                                 );
                             })()}

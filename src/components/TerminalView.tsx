@@ -23,6 +23,7 @@ const _ = cockpit.gettext;
 export interface TerminalViewHandle {
     executeCommand: (command: string) => Promise<{ output: string; exitCode: number; cwd: string }>;
     clear: () => void;
+    getVisibleText: () => string;
 }
 
 interface TerminalViewProps {
@@ -44,6 +45,12 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(({
             if (terminalRef.current) {
                 terminalRef.current.clear();
             }
+        },
+        getVisibleText: () => {
+            if (terminalRef.current) {
+                return terminalRef.current.getVisibleText();
+            }
+            return '';
         }
     }));
 

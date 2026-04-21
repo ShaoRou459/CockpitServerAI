@@ -51,6 +51,11 @@ export interface XTerminalHandle {
      * Focus the terminal
      */
     focus: () => void;
+
+    /**
+     * Get the visible text of the terminal screen
+     */
+    getVisibleText: () => string;
 }
 
 interface XTerminalProps {
@@ -84,8 +89,9 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                 // Generate unique marker ID
                 const markerId = `${Date.now()}`;
 
-                // Record the current buffer position
-                const startIndex = outputBufferRef.current.length;
+                // Record the current buffer position (we now clear it per-command)
+                outputBufferRef.current = '';
+                const startIndex = 0;
 
                 // Store resolver
                 commandResolverRef.current = {
@@ -94,10 +100,9 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                     startIndex
                 };
 
-                // Send command with completion marker that includes exit code and current working directory
-                // Format: ___AI_CMD_DONE___<exit_code>___CWD___<path>___
-                const wrappedCommand = `${command}; __AI_EXIT_CODE__=$?; printf '${COMMAND_MARKER}%d___CWD___%s___\\n' $__AI_EXIT_CODE__ "$PWD"\n`;
-                channelRef.current.input(wrappedCommand, true);
+                // Send command natively without any wrappers.
+                // We rely on the invisible PROMPT_COMMAND OSC payload to know when it finishes.
+                channelRef.current.input(`${command}\n`, true);
 
                 // Timeout after 360 seconds
                 setTimeout(() => {
@@ -130,13 +135,33 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
             if (terminalRef.current) {
                 terminalRef.current.focus();
             }
+        },
+
+        getVisibleText: () => {
+            if (!terminalRef.current) return '';
+            const terminal = terminalRef.current;
+            const buffer = terminal.buffer.active;
+            const lines: string[] = [];
+            // Get up to the last 150 lines of the terminal buffer to avoid huge prompts but capture enough context
+            const startY = Math.max(0, buffer.length - 150);
+            for (let i = startY; i < buffer.length; i++) {
+                const line = buffer.getLine(i);
+                if (line) {
+                    lines.push(line.translateToString(true)); // true trims trailing whitespace
+                }
+            }
+            // Filter out empty lines from the bottom to save token space
+            while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+                lines.pop();
+            }
+            return lines.join('\n');
         }
     }));
 
     useEffect(() => {
-        // Prevent double initialization (React StrictMode)
-        if (initializedRef.current || !containerRef.current) return;
-        initializedRef.current = true;
+        // Prevent double initialization but allow remount if terminal was disposed
+        if (!containerRef.current) return;
+        if (terminalRef.current) return;
 
         // Create terminal
         const terminal = new Terminal({
@@ -176,6 +201,9 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
 
         // Open terminal in container
         terminal.open(containerRef.current);
+        
+        // Show loading message while shell spawns (cleared automatically by stty/clear)
+        terminal.write('\r\n\x1b[36m  Connecting to integrated shell...\x1b[0m\r\n');
 
         terminalRef.current = terminal;
         fitAddonRef.current = fitAddon;
@@ -199,12 +227,11 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
         // Track if initial setup is done to avoid double prompts
         let initialSetupDone = false;
 
-        // Handle terminal resize - use stty to update terminal size
+        // Handle terminal resize - use Cockpit control API to update PTY window size silently
         terminal.onResize(({ cols, rows }) => {
-            if (channelRef.current && initialSetupDone) {
-                // Send stty command to update terminal size
-                // Use Ctrl+C first to clear any partial input, then stty, then Ctrl+L to refresh
-                channelRef.current.input(`stty cols ${cols} rows ${rows}; printf '\\033[2J\\033[H'\n`, true);
+            if (channelRef.current) {
+                // Send window resize control command (pass various synonyms as Cockpit API surface may expect lines/columns or rows/cols depending on the bridge version)
+                channelRef.current.control({ command: 'window', visible: true, rows: rows, cols: cols, lines: rows, columns: cols });
             }
         });
 
@@ -217,43 +244,30 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                 pty: true,
                 environ: [
                     "TERM=xterm-256color"
-                ]
+                ],
+                window: { rows: terminalRef.current?.rows || 24, cols: terminalRef.current?.cols || 80 }
             });
 
             channelRef.current = proc;
 
             // Handle output
             proc.stream((data: string) => {
-                // Buffer the raw output for command detection (includes markers)
-                outputBufferRef.current += data;
+                // DO NOT intercept or strip data with regex! This breaks readline cursor synchronization.
+                // Write exactly what bash sends to maintaining 100% 1:1 state mapping.
+                terminal.write(data);
 
-                // Filter out marker-related content from terminal display
-                let displayData = data;
-                // Remove the marker command echo and output (new format with CWD)
-                displayData = displayData.replace(/; __AI_EXIT_CODE__=\$\?; printf '___AI_CMD_DONE___%d___CWD___%s___\\n' \$__AI_EXIT_CODE__ "\$PWD"/g, '');
-                displayData = displayData.replace(/___AI_CMD_DONE___\d+___CWD___[^_]*___/g, '');
-                displayData = displayData.replace(/__AI_EXIT_CODE__=\d+/g, '');
-                // Remove stty resize commands (we send these internally)
-                displayData = displayData.replace(/stty cols \d+ rows \d+[^\r\n]*\r?\n?/g, '');
-
-                // Write to terminal if there's anything to display (including spaces)
-                if (displayData.length > 0) {
-                    terminal.write(displayData);
-                }
-
-                // Check for command completion
-                // Look for the ACTUAL marker output: ___AI_CMD_DONE___<exitcode>___CWD___<path>___
+                // Check for command completion using the invisible OSC emitted by PROMPT_COMMAND
                 if (commandResolverRef.current) {
+                    outputBufferRef.current += data;
                     const { resolve, startIndex, markerId } = commandResolverRef.current;
-                    // Match the actual marker output with exit code and CWD
-                    const markerPattern = new RegExp(`${COMMAND_MARKER}(\\d+)___CWD___([^_]*)___[\\r\\n]`);
+                    // Match the invisible OSC output from PROMPT_COMMAND
+                    const markerPattern = /\x1b\]1337;AI_CMD_STATUS=(\d+)\|([^\x07]+)\x07/;
                     const bufferSinceCommand = outputBufferRef.current.substring(startIndex);
                     const match = markerPattern.exec(bufferSinceCommand);
 
                     if (match && match.index !== undefined) {
                         // Debounce - wait a bit for any trailing output
                         const capturedMatch = match;
-                        const capturedIndex = match.index;
 
                         // Small delay to let any remaining output arrive
                         setTimeout(() => {
@@ -262,15 +276,12 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                                 return;
                             }
 
-                            // Re-check the buffer (may have more data now)
                             const finalBuffer = outputBufferRef.current.substring(startIndex);
                             const exitCode = parseInt(capturedMatch[1], 10);
                             const cwd = capturedMatch[2] || '';
 
-                            // Find the actual marker position using regex (not indexOf which would find the echo)
                             const finalMatch = markerPattern.exec(finalBuffer);
                             if (!finalMatch) {
-                                console.error('[XTerminal] Lost marker in final buffer');
                                 return;
                             }
 
@@ -278,31 +289,12 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                             let output = finalBuffer.substring(0, markerIdx);
 
                             if (isDebugMode()) {
-                                console.log('[XTerminal] Raw output before filtering (length=' + output.length + '):', output.substring(0, 500));
+                                console.log('[XTerminal] Raw OSC parsed output (length=' + output.length + '):', output.substring(0, 500));
                                 console.log('[XTerminal] CWD:', cwd);
                             }
 
-                            // Split into lines and filter out only the command echo and marker lines
-                            const lines = output.split('\n');
-                            const cleanLines = lines.filter(line => {
-                                // Remove lines that are the marker command itself (contains %d not actual digit)
-                                if (line.includes('__AI_EXIT_CODE__=$?')) return false;
-                                if (line.includes("printf '" + COMMAND_MARKER)) return false;
-                                if (line.includes('%d___CWD___%s___')) return false;  // The format specifier
-                                if (line.includes('%d___')) return false;  // Old format specifier
-                                return true;
-                            });
-
-                            // Also remove the first line if it's the command echo
-                            if (cleanLines.length > 0 && cleanLines[0].includes('; __AI_EXIT_CODE__=')) {
-                                cleanLines.shift();
-                            }
-
-                            output = cleanLines.join('\n').trim();
-                            if (isDebugMode()) {
-                                console.log('[XTerminal] Filtered output (length=' + output.length + '):', output.substring(0, 500));
-                                console.log('[XTerminal] Exit code:', exitCode);
-                            }
+                            // Trim trailing empty lines
+                            output = output.trim();
 
                             commandResolverRef.current = null;
                             resolve({ output, exitCode, cwd });
@@ -333,11 +325,12 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
 
                 spawnShell();
 
-                // After shell spawns, set the terminal size via stty and clear screen for clean start
+                // After shell spawns, set up hidden environment flags and clear screen for clean start
                 setTimeout(() => {
                     if (channelRef.current) {
-                        // Set terminal size and clear screen to avoid double prompt
-                        channelRef.current.input(`stty cols ${cols} rows ${rows}; clear\n`, true);
+                        // Use a custom PROMPT_COMMAND that fires an invisible OSC code to xterm.js so we know when commands finish (and exitCode/cwd) naturally.
+                        // We also set HISTCONTROL=ignoreboth just to be safe, but AI commands execute as normal history items now!
+                        channelRef.current.input(` [[ ":$HISTCONTROL:" != *":ignorespace:"* ]] && export HISTCONTROL=ignoreboth; export PROMPT_COMMAND="\${PROMPT_COMMAND:+$PROMPT_COMMAND; }printf '\\033]1337;AI_CMD_STATUS=%d|%s\\007' \\$? \\"$PWD\\""; clear\n`, true);
                         initialSetupDone = true;
                     }
                 }, 200);

@@ -25,6 +25,7 @@ type IntermediateResponseCallback = (response: string) => void;
 
 interface ProcessOptions {
     hostname: string;
+    terminalContext?: string;
     onAction: ActionCallback;
     onOutput: OutputCallback;
     onActionStarted?: ActionStartCallback;
@@ -43,6 +44,8 @@ export class AgentController {
     private settings: Settings;
     private conversationHistory: ChatMessage[] = [];
     private currentDirectory: string = '~';
+    private isAborted: boolean = false;
+    private currentExecutionId: number = 0;
 
     constructor() {
         this.settings = DEFAULT_SETTINGS;
@@ -70,6 +73,7 @@ export class AgentController {
      * Abort any in-progress AI request
      */
     abort(): void {
+        this.isAborted = true;
         this.aiClient.abort();
     }
 
@@ -81,6 +85,9 @@ export class AgentController {
     }
 
     async processMessage(userMessage: string, options: ProcessOptions): Promise<string> {
+        this.currentExecutionId++;
+        const executionId = this.currentExecutionId;
+        this.isAborted = false;
         const { hostname, onAction, onOutput, onActionStarted, onActionExecuted, onInteractiveCommand, onIntermediateResponse, onAssistantStream, executeCommand } = options;
 
         // Add user message to history
@@ -92,7 +99,8 @@ export class AgentController {
         // Build system prompt with current context
         const systemPrompt = this.buildSystemPrompt({
             hostname,
-            cwd: this.currentDirectory
+            cwd: this.currentDirectory,
+            terminalContext: options.terminalContext
         });
 
         try {
@@ -103,6 +111,10 @@ export class AgentController {
 
             // Multi-step execution loop
             while (iteration < maxSteps) {
+                if (this.isAborted || this.currentExecutionId !== executionId) {
+                    throw new Error('AbortError');
+                }
+                
                 iteration++;
 
                 // Send to AI
@@ -118,6 +130,10 @@ export class AgentController {
                     systemPrompt,
                     sendOpts
                 );
+
+                if (this.isAborted || this.currentExecutionId !== executionId) {
+                    throw new Error('AbortError');
+                }
 
                 // If no actions, we're done
                 if (!aiResponse.actions || aiResponse.actions.length === 0) {
@@ -147,6 +163,7 @@ export class AgentController {
 
                 // Execute actions
                 const results = await this.executeActions(
+                    executionId,
                     aiResponse.actions,
                     onAction,
                     onOutput,
@@ -155,6 +172,10 @@ export class AgentController {
                     onInteractiveCommand,
                     executeCommand
                 );
+                
+                if (this.isAborted || this.currentExecutionId !== executionId) {
+                    throw new Error('AbortError');
+                }
 
                 // Add AI's response to history
                 this.conversationHistory.push({
@@ -196,6 +217,7 @@ export class AgentController {
     }
 
     private async executeActions(
+        executionId: number,
         actions: Action[],
         onAction: ActionCallback,
         onOutput: OutputCallback,
@@ -207,6 +229,10 @@ export class AgentController {
         const results: { action: Action; result: CommandResult }[] = [];
 
         for (const action of actions) {
+            if (this.isAborted || this.currentExecutionId !== executionId) {
+                throw new Error('AbortError');
+            }
+            
             // Log action request
             debugLogger.logAction(action, 'requested');
 
@@ -498,12 +524,16 @@ IMPORTANT: Respond naturally to the user. If you need to execute commands, provi
     }
 
     private buildSystemPrompt(context: SystemContext): string {
+        const terminalInfo = context.terminalContext 
+            ? `\n\n## Recent Terminal Visible Content\nThe following is the actual text currently visible on the user's terminal screen. You can use this to understand what commands the user has recently run manually and their outputs:\n\`\`\`\n${context.terminalContext}\n\`\`\``
+            : '';
+
         return `You are an AI assistant integrated into Cockpit, helping administrators manage a Linux server.
 
 ## Current Context
 - Hostname: ${context.hostname}
 - Current directory: ${context.cwd || '/root'}
-- Timestamp: ${new Date().toISOString()}
+- Timestamp: ${new Date().toISOString()}${terminalInfo}
 
 ## Response Format
 Answer the user naturally. You can use markdown styling, code blocks, and multi-paragraph formatting.

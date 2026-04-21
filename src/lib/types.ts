@@ -69,6 +69,7 @@ export interface SystemContext {
     user?: string;
     cwd?: string;
     uptime?: string;
+    terminalContext?: string;
 }
 
 // Chat session for history
