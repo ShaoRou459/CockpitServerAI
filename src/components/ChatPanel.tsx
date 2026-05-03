@@ -55,7 +55,7 @@ const purifyConfig = {
         'pre', 'code', 'blockquote',
         'a', 'hr',
         'table', 'thead', 'tbody', 'tr', 'th', 'td',
-        'span', 'div'
+        'span', 'div', 'think', 'thought', 'details', 'summary'
     ],
     ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
     ALLOW_DATA_ATTR: false,
@@ -225,6 +225,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         <div className="chat-empty-state">
                             <h2 className="chat-empty-state__title">{_("How can I help you today?")}</h2>
                             <p className="chat-empty-state__hint">{_("Ask me to run commands, check system status, or troubleshoot issues.")}</p>
+                            <div className="chat-quick-actions">
+                                <button type="button" className="chat-quick-action-btn" onClick={() => onSendMessage("Check system storage")}>Check system storage</button>
+                                <button type="button" className="chat-quick-action-btn" onClick={() => onSendMessage("Update Docker containers")}>Update Docker containers</button>
+                                <button type="button" className="chat-quick-action-btn" onClick={() => onSendMessage("Show network info")}>Network info</button>
+                                <button type="button" className="chat-quick-action-btn" onClick={() => onSendMessage("Check security logs")}>Check security logs</button>
+                            </div>
                         </div>
                     )}
                     {messages.map((message, index) => (
@@ -586,7 +592,13 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
             const jsonMatch = message.content.match(/```(?:json)?\s*\[\s*\{[\s\S]*?\}\s*\]\s*```/);
             const rawJsonContent = jsonMatch ? jsonMatch[0] : null;
             
-            const cleanContent = rawJsonContent ? message.content.replace(rawJsonContent, '').trim() : message.content;
+            let cleanContent = rawJsonContent ? message.content.replace(rawJsonContent, '').trim() : message.content;
+            
+            // Convert <think> and <thought> tags to collapsible details
+            cleanContent = cleanContent.replace(/<(?:think|thought)>([\s\S]*?)<\/(?:think|thought)>/gi, '\n<details class="thought-process"><summary>Thought Process</summary>\n\n$1\n\n</details>\n');
+            
+            // Handle unclosed tags for active streaming
+            cleanContent = cleanContent.replace(/<(?:think|thought)>([\s\S]*)$/i, '\n<details class="thought-process" open><summary>Thought Process</summary>\n\n$1\n\n</details>\n');
             
             const rawHtml = marked.parse(cleanContent) as string;
             const safeHtml = sanitizeHtml(rawHtml);

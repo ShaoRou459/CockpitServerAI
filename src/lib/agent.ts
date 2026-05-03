@@ -520,7 +520,7 @@ ${parts.join('\n\n---\n\n')}
 
 Based on these results, decide the next steps.
 
-IMPORTANT: Respond naturally to the user. If you need to execute commands, provide them as a JSON array inside a \`\`\`json block at the end of your response. If no more commands are needed, just omit the JSON block.`;
+IMPORTANT: If you have a plan to execute commands, DO NOT just state the plan in text. You MUST output the actual commands as a JSON array inside a \`\`\`json block at the end of your response so they can be executed immediately. Do not wait for user confirmation unless you specifically use the 'ask_user' action type. If no more commands are needed, omit the JSON block.`;
     }
 
     private buildSystemPrompt(context: SystemContext): string {
@@ -537,10 +537,9 @@ IMPORTANT: Respond naturally to the user. If you need to execute commands, provi
 
 ## Response Format
 Answer the user naturally. You can use markdown styling, code blocks, and multi-paragraph formatting.
-If you need to execute commands, file operations, or services, append them at the very end of your response wrapped in a \`\`\`json block. Include your reasoning in <thought> tags if needed.
+If you need to execute commands, file operations, or services, append them at the very end of your response wrapped in a \`\`\`json block.
 
 Example response:
-<thought>I need to check the OS details to know what package manager to use.</thought>
 I will check the operating system details for you now!
 \`\`\`json
 [

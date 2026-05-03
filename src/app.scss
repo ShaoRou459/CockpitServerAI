@@ -1332,6 +1332,37 @@ body.resizing * {
         }
     }
 
+    .thought-process {
+        display: block;
+        margin: 8px 0;
+        padding: 12px;
+        background-color: var(--ai-bg-color);
+        border-left: 4px solid var(--ai-primary-color);
+        color: var(--ai-text-muted);
+        font-size: 0.9em;
+        border-radius: 4px;
+
+        summary {
+            font-weight: 600;
+            color: var(--ai-primary-color);
+            font-size: 1.05em;
+            cursor: pointer;
+            margin-bottom: 4px;
+            user-select: none;
+            outline: none;
+            
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+        
+        &[open] summary {
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--ai-border-color);
+            padding-bottom: 8px;
+        }
+    }
+
     table {
         border-collapse: collapse;
         margin: 8px 0;
@@ -4674,6 +4705,45 @@ body.resizing * {
     margin: 0;
     max-width: 340px;
     line-height: 1.5;
+}
+
+.chat-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    max-width: 450px;
+    margin-top: 24px;
+    animation: empty-state-in 0.5s ease-out both;
+    animation-delay: 0.1s;
+}
+
+.chat-quick-action-btn {
+    background-color: transparent;
+    border: 1px solid var(--ai-border-color);
+    border-radius: 16px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    color: var(--ai-text-color);
+    opacity: 0.55;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    &:hover {
+        opacity: 0.9;
+        background-color: var(--ai-hover-bg);
+        border-color: var(--ai-primary-color);
+        color: var(--ai-primary-color);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    &:active {
+        transform: translateY(1px);
+    }
 }
 
 @keyframes empty-state-in {

@@ -335,8 +335,6 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
                     }
                 }, 200);
 
-                terminal.focus();
-
                 if (onReady) {
                     onReady();
                 }

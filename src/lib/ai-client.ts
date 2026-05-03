@@ -357,6 +357,7 @@ export class AIClient {
 
         let streamedContent = '';
         let sseLineBuffer = '';
+        let isReasoning = false;
 
         const response = await httpRequest(
             url,
@@ -382,9 +383,27 @@ export class AIClient {
 
                         try {
                             const evt = JSON.parse(dataStr);
-                            const delta = evt.choices?.[0]?.delta?.content;
-                            if (typeof delta === 'string' && delta.length > 0) {
-                                streamedContent += delta;
+                            const deltaObj = evt.choices?.[0]?.delta;
+                            if (!deltaObj) continue;
+
+                            const reasoningContent = deltaObj.reasoning_content;
+                            const deltaContent = deltaObj.content;
+
+                            if (typeof reasoningContent === 'string' && reasoningContent.length > 0) {
+                                if (!isReasoning) {
+                                    isReasoning = true;
+                                    streamedContent += '<think>\n';
+                                }
+                                streamedContent += reasoningContent;
+                                onResponseStream?.(streamedContent);
+                            }
+
+                            if (typeof deltaContent === 'string' && deltaContent.length > 0) {
+                                if (isReasoning) {
+                                    isReasoning = false;
+                                    streamedContent += '\n</think>\n\n';
+                                }
+                                streamedContent += deltaContent;
                                 onResponseStream?.(streamedContent);
                             }
                         } catch {
@@ -418,14 +437,26 @@ export class AIClient {
                 // Fallback for OpenAI-compatible endpoints that ignore `stream: true`
                 try {
                     const data = JSON.parse(response.body);
-                    content = data.choices?.[0]?.message?.content;
+                    const msg = data.choices?.[0]?.message;
+                    if (msg) {
+                        content = msg.content || '';
+                        if (msg.reasoning_content) {
+                            content = `<think>\n${msg.reasoning_content}\n</think>\n\n${content}`;
+                        }
+                    }
                 } catch {
                     content = undefined;
                 }
             }
         } else {
             const data = JSON.parse(response.body);
-            content = data.choices?.[0]?.message?.content;
+            const msg = data.choices?.[0]?.message;
+            if (msg) {
+                content = msg.content || '';
+                if (msg.reasoning_content) {
+                    content = `<think>\n${msg.reasoning_content}\n</think>\n\n${content}`;
+                }
+            }
         }
 
         if (!content) {
@@ -567,14 +598,15 @@ export class AIClient {
     private parseAIResponse(content: string): AIResponse {
         // Extract thought
         let thought = '';
-        const thoughtMatch = content.match(/<thought>([\s\S]*?)<\/thought>/);
+        const thoughtMatch = content.match(/<(?:thought|think)>([\s\S]*?)<\/(?:thought|think)>/i);
         if (thoughtMatch) {
             thought = thoughtMatch[1].trim();
         }
 
         // Extract actions
         let actions: any[] = [];
-        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+        // Match only blocks explicitly marked as json, or the last code block in the response
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)```/i) || content.match(/```\s*([\s\S]*?)```[^`]*$/);
         if (jsonMatch) {
             try {
                 const parsed = JSON.parse(jsonMatch[1].trim());
@@ -586,9 +618,9 @@ export class AIClient {
             }
         }
 
-        // Clean response by stripping json and thought
-        let responseText = content.replace(/```(?:json)?\s*[\s\S]*?```/, '').trim();
-        responseText = responseText.replace(/<thought>([\s\S]*?)<\/thought>/, '').trim();
+        // Clean response by stripping json
+        let responseText = content.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim();
+        // Note: We no longer strip <thought> or <think> tags, so the UI can render the reasoning process.
 
         const result: AIResponse = {
             thought,
