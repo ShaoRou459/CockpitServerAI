@@ -1,0 +1,65 @@
+name: Build and Package
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [ published ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gettext rpm jq tar appstream
+
+    - name: Install npm dependencies
+      run: npm install
+
+    - name: Build dist and RPM
+      run: |
+        # make rpm automatically builds the dist folder and packages it
+        make rpm
+
+    - name: Upload dist directory
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+        retention-days: 7
+
+    - name: Upload RPM package
+      uses: actions/upload-artifact@v4
+      with:
+        name: cockpit-ai-agent-rpm
+        path: "*.rpm"
+        retention-days: 7
+
+  release-assets:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Download RPM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cockpit-ai-agent-rpm
+      
+      - name: Upload RPM to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.rpm"
