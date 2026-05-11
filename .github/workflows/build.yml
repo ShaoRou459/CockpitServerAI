@@ -18,7 +18,13 @@ jobs:
     - name: Install system dependencies
       run: |
         dnf -y update
-        dnf -y install git make nodejs npm gettext rpm-build jq tar xz file findutils appstream
+        dnf -y install \
+          git make nodejs npm jq \
+          gettext \
+          rpm-build nodejs-packaging \
+          libappstream-glib appstream \
+          nodejs-esbuild \
+          tar xz file findutils
 
     - name: Checkout repository
       uses: actions/checkout@v4
