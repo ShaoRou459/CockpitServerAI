@@ -29,6 +29,12 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Verify git checkout
+      run: |
+        git rev-parse --is-inside-work-tree
+        git rev-parse --show-toplevel
+        git describe --always --dirty
+
     - name: Install npm dependencies
       run: npm install --legacy-peer-deps
 
