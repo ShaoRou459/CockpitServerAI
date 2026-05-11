@@ -41,11 +41,11 @@ interface DebugPanelProps {
 
 // Category display names and colors
 const CATEGORY_CONFIG: Record<LogCategory, { label: string; color: string }> = {
-    'api-request': { label: 'API →', color: '#0066cc' },
+    'api-request': { label: 'API →', color: '#ab69d3' },
     'api-response': { label: 'API ←', color: '#3e8635' },
     'ai-parse': { label: 'Parse', color: '#8a4fff' },
     'action': { label: 'Action', color: '#f0ab00' },
-    'command': { label: 'CMD', color: '#73bcf7' },
+    'command': { label: 'CMD', color: '#c9a0e8' },
     'settings': { label: 'Settings', color: '#6a6e73' },
     'state': { label: 'State', color: '#8a8d90' },
     'secret': { label: 'Secret', color: '#ec7a08' },
@@ -55,7 +55,7 @@ const CATEGORY_CONFIG: Record<LogCategory, { label: string; color: string }> = {
 
 const LEVEL_CONFIG: Record<LogLevel, { color: string; bg: string }> = {
     'debug': { color: '#6a6e73', bg: 'transparent' },
-    'info': { color: '#0066cc', bg: 'transparent' },
+    'info': { color: '#ab69d3', bg: 'transparent' },
     'warn': { color: '#f0ab00', bg: '#f0ab0015' },
     'error': { color: '#c9190b', bg: '#c9190b15' },
 };

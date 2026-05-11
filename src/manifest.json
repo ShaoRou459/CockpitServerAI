@@ -1,12 +1,12 @@
 {
-    "version": "0.1.0",
-    "requires": {
-        "cockpit": "137"
-    },
-    "tools": {
-        "index": {
-            "label": "AI Agent"
-        }
-    },
-    "content-security-policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*"
+  "version": "0.1.0",
+  "requires": {
+    "cockpit": "137"
+  },
+  "tools": {
+    "index": {
+      "label": "Agent"
+    }
+  },
+  "content-security-policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*"
 }

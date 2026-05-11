@@ -107,6 +107,7 @@ const context = await esbuild.context({
         ".js": "jsx",
         ".ts": "ts",
         ".tsx": "tsx",
+        ".png": "file",
     },
     metafile: true,
     minify: production,
@@ -123,6 +124,9 @@ const context = await esbuild.context({
                 build.onEnd(() => {
                     fs.copyFileSync('./src/manifest.json', './dist/manifest.json');
                     fs.copyFileSync('./src/index.html', './dist/index.html');
+                    // Copy logo assets
+                    if (fs.existsSync('./src/logo.png')) fs.copyFileSync('./src/logo.png', './dist/logo.png');
+                    if (fs.existsSync('./src/logo-text.png')) fs.copyFileSync('./src/logo-text.png', './dist/logo-text.png');
                     generatePoJs();
                 });
             }

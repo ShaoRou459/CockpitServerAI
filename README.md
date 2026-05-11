@@ -1,9 +1,15 @@
-# Cockpit AI Agent
+<div align="center">
+  <img src="logo-text.png" alt="Cockpit Agent Logo" width="450" />
+  
+  <h3>An AI-powered terminal assistant plugin for <a href="https://cockpit-project.org/">Cockpit</a>, the web-based Linux server management interface.</h3>
 
-An AI-powered terminal assistant plugin for [Cockpit](https://cockpit-project.org/), the web-based Linux server management interface.
+  <p>
+    <img src="https://img.shields.io/badge/version-1.0.0-ab69d3?style=for-the-badge" alt="Version 1.0.0" />
+    <img src="https://img.shields.io/badge/license-LGPL--2.1-ab69d3?style=for-the-badge" alt="License LGPL 2.1" />
+  </p>
+</div>
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
-![License](https://img.shields.io/badge/license-LGPL--2.1-green)
+---
 
 ## Features
 
