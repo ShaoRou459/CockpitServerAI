@@ -38,8 +38,8 @@ import {
   LockIcon,
   BoltIcon,
   SkullIcon,
-  CommentsIcon,
-  KeyIcon,
+  GlobeAmericasIcon,
+  TerminalIcon,
 } from "@patternfly/react-icons";
 import { Settings, PROVIDERS, SAFETY_MODES, SafetyMode } from "../lib/settings";
 import { useI18n } from "../lib/i18n";
@@ -48,7 +48,7 @@ import { useI18n } from "../lib/i18n";
 import logoTextUrl from "../logo-text.png";
 
 // Step configuration
-type OnboardingStep = "welcome" | "provider" | "safety" | "disclaimer";
+type OnboardingStep = "language" | "welcome" | "provider" | "safety" | "disclaimer" | "congratulations";
 
 interface StepConfig {
   id: OnboardingStep;
@@ -58,6 +58,12 @@ interface StepConfig {
 }
 
 const STEPS: StepConfig[] = [
+  {
+    id: "language",
+    title: "Language",
+    subtitle: "Select Language",
+    icon: GlobeAmericasIcon,
+  },
   {
     id: "welcome",
     title: "Welcome",
@@ -80,6 +86,12 @@ const STEPS: StepConfig[] = [
     id: "disclaimer",
     title: "Agreement",
     subtitle: "Terms of Use",
+    icon: ExclamationTriangleIcon,
+  },
+  {
+    id: "congratulations",
+    title: "Setup Complete",
+    subtitle: "Congratulations",
     icon: CheckCircleIcon,
   },
 ];
@@ -109,7 +121,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 }) => {
   const { t, setLanguage, languages } = useI18n();
   const _ = t;
-  const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>("language");
   const [formData, setFormData] = useState<Settings>(initialSettings);
   const [showApiKey, setShowApiKey] = useState(false);
   const [useCustomModel, setUseCustomModel] = useState(false);
@@ -120,7 +132,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setCurrentStep("welcome");
+      setCurrentStep("language");
       setFormData(initialSettings);
       setShowApiKey(false);
       setDisclaimerAccepted(false);
@@ -154,11 +166,22 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   };
 
   const currentStepIndex = STEPS.findIndex((s) => s.id === currentStep);
+  const safeStepIndex = Math.max(currentStepIndex, 0);
+  const totalSteps = STEPS.length;
+  const stepsCompleted = safeStepIndex + 1;
+  const stepsLeft = Math.max(totalSteps - stepsCompleted, 0);
+  const progressPercent = Math.round((stepsCompleted / totalSteps) * 100);
+  const stepsLeftText =
+    stepsLeft === 1
+      ? _("1 step left")
+      : _("{count} steps left", { count: stepsLeft });
+
   const providerConfig = PROVIDERS[formData.provider];
   const availableModels = providerConfig?.models || [];
 
   const canProceed = (): boolean => {
     switch (currentStep) {
+      case "language":
       case "welcome":
         return true;
       case "provider":
@@ -168,41 +191,33 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         return true;
       case "disclaimer":
         return disclaimerAccepted;
+      case "congratulations":
+        return true;
       default:
         return true;
     }
   };
 
+  const STEP_ORDER: OnboardingStep[] = STEPS.map((s) => s.id);
+
   const handleNext = () => {
-    const stepOrder: OnboardingStep[] = [
-      "welcome",
-      "provider",
-      "safety",
-      "disclaimer",
-    ];
-    const currentIndex = stepOrder.indexOf(currentStep);
+    const currentIndex = STEP_ORDER.indexOf(currentStep);
 
     if (currentStep === "provider" && !formData.apiKey.trim()) {
       setValidationError(_("Please enter an API key to continue"));
       return;
     }
 
-    if (currentIndex < stepOrder.length - 1) {
-      setCurrentStep(stepOrder[currentIndex + 1]);
+    if (currentIndex < STEP_ORDER.length - 1) {
+      setCurrentStep(STEP_ORDER[currentIndex + 1]);
       setValidationError(null);
     }
   };
 
   const handleBack = () => {
-    const stepOrder: OnboardingStep[] = [
-      "welcome",
-      "provider",
-      "safety",
-      "disclaimer",
-    ];
-    const currentIndex = stepOrder.indexOf(currentStep);
+    const currentIndex = STEP_ORDER.indexOf(currentStep);
     if (currentIndex > 0) {
-      setCurrentStep(stepOrder[currentIndex - 1]);
+      setCurrentStep(STEP_ORDER[currentIndex - 1]);
       setValidationError(null);
     }
   };
@@ -230,13 +245,49 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
   // ============ Step Content Components ============
 
+  const LanguageStep = () => (
+    <div className="onboarding-step onboarding-language">
+      <div className="onboarding-step__header">
+        <GlobeAmericasIcon className="onboarding-step__icon" />
+        <div>
+          <h2 className="onboarding-step__title">{_("Language Selection")}</h2>
+          <p className="onboarding-step__description">
+            {_("Please select your preferred language layout.")}
+          </p>
+        </div>
+      </div>
+      <div className="onboarding-language__buttons pf-v6-u-mt-lg">
+        {languages.map((option) => {
+          const isSelected = formData.language === option.value;
+          return (
+            <Button
+              key={option.value}
+              variant="plain"
+              aria-pressed={isSelected}
+              className={`onboarding-language__button ${isSelected ? "is-selected" : ""}`}
+              onClick={() =>
+                updateField("language", option.value as Settings["language"])
+              }
+            >
+              <div className="onboarding-language__button-content">
+                <span className="onboarding-language__button-icon">
+                  {option.value === "en" ? "Aa" : "你好"}
+                </span>
+                <span className="onboarding-language__button-label">
+                  {option.label}
+                </span>
+              </div>
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const WelcomeStep = () => (
     <div className="onboarding-step onboarding-welcome">
       <div className="onboarding-welcome__hero">
         <img src={logoTextUrl} alt="Cockpit Agent" className="onboarding-welcome__logo-img" />
-        <h1 className="onboarding-welcome__title">
-          {_("Welcome to Cockpit Agent")}
-        </h1>
         <p className="onboarding-welcome__subtitle">
           {_("Your AI-powered terminal assistant for server administration")}
         </p>
@@ -245,11 +296,20 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       <div className="onboarding-welcome__features">
         <div className="onboarding-feature">
           <div className="onboarding-feature__icon">
-            <CommentsIcon />
+            <RocketIcon />
           </div>
           <div className="onboarding-feature__content">
-            <h4>{_("Natural Language Interface")}</h4>
-            <p>{_("Just describe what you want to do in plain English")}</p>
+            <h4>{_("AI Powered Automation")}</h4>
+            <p>{_("Automate complex tasks through intelligent prompt execution")}</p>
+          </div>
+        </div>
+        <div className="onboarding-feature">
+          <div className="onboarding-feature__icon">
+            <TerminalIcon />
+          </div>
+          <div className="onboarding-feature__content">
+            <h4>{_("Direct Terminal Access")}</h4>
+            <p>{_("Let the agent seamlessly execute commands and view outputs in real time")}</p>
           </div>
         </div>
         <div className="onboarding-feature">
@@ -257,45 +317,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             <ShieldAltIcon />
           </div>
           <div className="onboarding-feature__content">
-            <h4>{_("Safety Controls")}</h4>
-            <p>{_("Command approval and risk assessment before execution")}</p>
-          </div>
-        </div>
-        <div className="onboarding-feature">
-          <div className="onboarding-feature__icon">
-            <KeyIcon />
-          </div>
-          <div className="onboarding-feature__content">
-            <h4>{_("Secret Protection")}</h4>
-            <p>{_("Automatic detection and redaction of sensitive data")}</p>
+            <h4>{_("Secure and Private")}</h4>
+            <p>{_("Built-in protections and configurable safety levels")}</p>
           </div>
         </div>
       </div>
-
-      <Form className="onboarding-form pf-v6-u-mt-lg">
-        <FormGroup label={_("Language")} fieldId="onboarding-language">
-          <FormSelect
-            id="onboarding-language"
-            value={formData.language}
-            onChange={(_e, value) =>
-              updateField("language", value as Settings["language"])
-            }
-          >
-            {languages.map((option) => (
-              <FormSelectOption
-                key={option.value}
-                value={option.value}
-                label={option.label}
-              />
-            ))}
-          </FormSelect>
-          <HelperText>
-            <HelperTextItem>
-              {_("Choose the interface language used throughout the app.")}
-            </HelperTextItem>
-          </HelperText>
-        </FormGroup>
-      </Form>
 
       <p className="onboarding-welcome__cta">
         {_("Let's get you set up in just a few steps.")}
@@ -390,59 +416,61 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           </HelperText>
         </FormGroup>
 
-        <FormGroup label={_("Model")} isRequired fieldId="onboarding-model">
-          {!useCustomModel && availableModels.length > 0 ? (
-            <FormSelect
-              id="onboarding-model"
-              value={
-                availableModels.includes(formData.model)
-                  ? formData.model
-                  : availableModels[0]
-              }
-              onChange={(_e, value) => updateField("model", value)}
-            >
-              {availableModels.map((model) => (
-                <FormSelectOption key={model} value={model} label={model} />
-              ))}
-            </FormSelect>
-          ) : (
-            <TextInput
-              id="onboarding-model"
-              value={formData.model}
-              onChange={(_e, value) => updateField("model", value)}
-              placeholder="model-name"
-            />
-          )}
-          <HelperText>
-            <HelperTextItem>
-              <Button
-                variant="link"
-                isInline
-                onClick={() => setUseCustomModel(!useCustomModel)}
+        <div className="onboarding-provider__row">
+          <FormGroup label={_("Model")} isRequired fieldId="onboarding-model" className="onboarding-provider__col">
+            {!useCustomModel && availableModels.length > 0 ? (
+              <FormSelect
+                id="onboarding-model"
+                value={
+                  availableModels.includes(formData.model)
+                    ? formData.model
+                    : availableModels[0]
+                }
+                onChange={(_e, value) => updateField("model", value)}
               >
-                {useCustomModel
-                  ? _("Use preset models")
-                  : _("Use custom model")}
-              </Button>
-            </HelperTextItem>
-          </HelperText>
-        </FormGroup>
+                {availableModels.map((model) => (
+                  <FormSelectOption key={model} value={model} label={model} />
+                ))}
+              </FormSelect>
+            ) : (
+              <TextInput
+                id="onboarding-model"
+                value={formData.model}
+                onChange={(_e, value) => updateField("model", value)}
+                placeholder="model-name"
+              />
+            )}
+            <HelperText>
+              <HelperTextItem>
+                <Button
+                  variant="link"
+                  isInline
+                  onClick={() => setUseCustomModel(!useCustomModel)}
+                >
+                  {useCustomModel
+                    ? _("Use preset models")
+                    : _("Use custom model")}
+                </Button>
+              </HelperTextItem>
+            </HelperText>
+          </FormGroup>
 
-        <FormGroup label={_("Base URL")} fieldId="onboarding-base-url">
-          <TextInput
-            id="onboarding-base-url"
-            value={formData.baseUrl}
-            onChange={(_e, value) => updateField("baseUrl", value)}
-            placeholder={providerConfig?.defaultBaseUrl}
-          />
-          <HelperText>
-            <HelperTextItem>
-              {_(
-                "Optional: Override for proxies or local deployments (e.g., Ollama)",
-              )}
-            </HelperTextItem>
-          </HelperText>
-        </FormGroup>
+          <FormGroup label={_("Base URL")} fieldId="onboarding-base-url" className="onboarding-provider__col">
+            <TextInput
+              id="onboarding-base-url"
+              value={formData.baseUrl}
+              onChange={(_e, value) => updateField("baseUrl", value)}
+              placeholder={providerConfig?.defaultBaseUrl}
+            />
+            <HelperText>
+              <HelperTextItem>
+                {_(
+                  "Optional: Local proxy override",
+                )}
+              </HelperTextItem>
+            </HelperText>
+          </FormGroup>
+        </div>
       </Form>
 
       {validationError && (
@@ -615,8 +643,22 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     </div>
   );
 
+  const CongratulationsStep = () => (
+    <div className="onboarding-step onboarding-congratulations">
+      <div className="onboarding-congratulations__content">
+        <CheckCircleIcon className="onboarding-congratulations__icon" />
+        <h2 className="onboarding-congratulations__title">{_("Setup Complete")}</h2>
+        <p className="onboarding-congratulations__description">
+          {_("Your AI assistant is configured and ready to go.")}
+        </p>
+      </div>
+    </div>
+  );
+
   const renderStepContent = () => {
     switch (currentStep) {
+      case "language":
+        return <LanguageStep />;
       case "welcome":
         return <WelcomeStep />;
       case "provider":
@@ -625,6 +667,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         return <SafetyStep />;
       case "disclaimer":
         return <DisclaimerStep />;
+      case "congratulations":
+        return <CongratulationsStep />;
       default:
         return null;
     }
@@ -652,36 +696,57 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
         {/* Footer Navigation */}
         <div className="onboarding-modal__footer">
-          <div className="onboarding-modal__footer-left">
-            {currentStep !== "welcome" && (
-              <Button
-                variant="secondary"
-                onClick={handleBack}
-                isDisabled={isSubmitting}
-              >
-                <ArrowLeftIcon /> {_("Back")}
-              </Button>
-            )}
+          <div className="onboarding-modal__progress">
+            <div
+              className="onboarding-modal__progress-track"
+              role="progressbar"
+              aria-label={_("Onboarding progress")}
+              aria-valuemin={1}
+              aria-valuemax={totalSteps}
+              aria-valuenow={stepsCompleted}
+            >
+              <div
+                className="onboarding-modal__progress-fill"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="onboarding-modal__progress-text">
+              {stepsLeftText}
+            </span>
           </div>
-          <div className="onboarding-modal__footer-right">
-            {currentStep === "disclaimer" ? (
-              <Button
-                variant="primary"
-                onClick={handleComplete}
-                isDisabled={!disclaimerAccepted || isSubmitting}
-                isLoading={isSubmitting}
-              >
-                {_("Get Started")} <RocketIcon />
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                onClick={handleNext}
-                isDisabled={!canProceed()}
-              >
-                {_("Continue")} <ArrowRightIcon />
-              </Button>
-            )}
+
+          <div className="onboarding-modal__footer-nav">
+            <div className="onboarding-modal__footer-left">
+              {currentStep !== "language" && (
+                <Button
+                  variant="secondary"
+                  onClick={handleBack}
+                  isDisabled={isSubmitting}
+                >
+                  <ArrowLeftIcon /> {_("Back")}
+                </Button>
+              )}
+            </div>
+            <div className="onboarding-modal__footer-right">
+              {currentStep === "congratulations" ? (
+                <Button
+                  variant="primary"
+                  onClick={handleComplete}
+                  isDisabled={!disclaimerAccepted || isSubmitting}
+                  isLoading={isSubmitting}
+                >
+                  {_("Get Started")} <RocketIcon />
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={handleNext}
+                  isDisabled={!canProceed()}
+                >
+                  {_("Continue")} <ArrowRightIcon />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

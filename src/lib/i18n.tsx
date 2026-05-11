@@ -49,6 +49,19 @@ const ZH_CN_TRANSLATIONS: Record<string, string> = {
   "Welcome to Cockpit Agent": "欢迎使用 Cockpit 助手",
   "Your AI-powered terminal assistant for server administration":
     "面向服务器管理的 AI 终端助手",
+  "Language Selection": "语言选择",
+  "Please select your preferred language layout.": "请选择你偏好的界面语言。",
+  "Onboarding progress": "引导进度",
+  "1 step left": "还剩 1 步",
+  "{count} steps left": "还剩 {count} 步",
+  "AI Powered Automation": "AI 自动化",
+  "Automate complex tasks through intelligent prompt execution":
+    "通过智能提示执行来自动化复杂任务",
+  "Direct Terminal Access": "直接终端访问",
+  "Let the agent seamlessly execute commands and view outputs in real time":
+    "让助手无缝执行命令，并实时查看输出",
+  "Secure and Private": "安全与隐私",
+  "Built-in protections and configurable safety levels": "内置防护与可配置的安全级别",
   "Natural Language Interface": "自然语言界面",
   "Just describe what you want to do in plain English":
     "只需用自然语言描述你想执行的操作",
@@ -101,6 +114,12 @@ const ZH_CN_TRANSLATIONS: Record<string, string> = {
     "你的提示词和命令输出可能会发送给第三方 AI 提供商（OpenAI、Google 等）进行处理。虽然我们会隐藏检测到的敏感信息，但你仍不应输入高度敏感的数据。请查看你的提供商数据处理政策。",
   "I have read and understand the above disclaimer. I accept full responsibility for my use of this software and any commands executed on my system.":
     "我已阅读并理解上述免责声明。我愿意对使用本软件以及在我的系统上执行的任何命令承担全部责任。",
+  "Setup Complete": "设置完成",
+  "You are all set to start using the Cockpit Agent.":
+    "一切就绪，可以开始使用 Cockpit 助手。",
+  "Congratulations!": "恭喜！",
+  "Your AI assistant is configured and ready to go.":
+    "你的 AI 助手已配置完成，可以开始使用。",
   Step: "步骤",
   of: "共",
   Back: "返回",
