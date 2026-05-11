@@ -146,6 +146,33 @@ try {
 
     if (!args.watch) {
         fs.writeFileSync('metafile.json', JSON.stringify(result.metafile));
+
+        // Extract bundled npm packages for RPM dependency tracking.
+        // Format: "package-name version" (one per line).
+        const bundledPackages = new Set();
+        for (const inputPath of Object.keys(result.metafile?.inputs ?? {})) {
+            // Match paths like node_modules/package-name/ or node_modules/@scope/package-name/
+            const match = inputPath.match(/^node_modules\/(@[^/]+\/[^/]+|[^/]+)\//);
+            if (match)
+                bundledPackages.add(match[1]);
+        }
+
+        try {
+            const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+            const deps = [];
+            for (const pkgName of Array.from(bundledPackages).sort()) {
+                const lockKey = `node_modules/${pkgName}`;
+                const pkgInfo = packageLock.packages?.[lockKey];
+                if (pkgInfo?.version)
+                    deps.push(`${pkgName} ${pkgInfo.version}`);
+                else
+                    console.error(`Warning: Could not find version for ${pkgName}`);
+            }
+            fs.writeFileSync('runtime-npm-modules.txt', deps.join('\n') + '\n');
+        } catch (err) {
+            console.error('Warning: Failed to write runtime-npm-modules.txt:', err);
+            fs.writeFileSync('runtime-npm-modules.txt', '\n');
+        }
     }
 } catch (e) {
     console.error('Build failed:', e);

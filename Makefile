@@ -1,6 +1,8 @@
 # extract name from package.json
 PACKAGE_NAME := $(shell awk '/"name":/ {gsub(/[",]/, "", $$2); print $$2}' package.json)
-RPM_NAME := cockpit-$(PACKAGE_NAME)
+# Our RPM names are usually prefixed with "cockpit-".
+# If the package name already starts with "cockpit-", avoid double-prefixing.
+RPM_NAME := $(if $(filter cockpit-%,$(PACKAGE_NAME)),$(PACKAGE_NAME),cockpit-$(PACKAGE_NAME))
 VERSION := $(shell T=$$(git describe 2>/dev/null) || T=1; echo $$T | tr '-' '.')
 ifeq ($(TEST_OS),)
 TEST_OS = centos-9-stream
@@ -133,7 +135,10 @@ $(TARFILE): $(DIST_TEST) $(SPEC) packaging/arch/PKGBUILD
 		$$(git ls-files) $(COCKPIT_REPO_FILES) $(NODE_MODULES_TEST) $(DIST_TEST) \
 		$(SPEC) packaging/arch/PKGBUILD dist/
 
-$(NODE_CACHE): $(NODE_MODULES_TEST)
+$(NODE_CACHE): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)
+	# Cockpit's tools/node-modules expects node_modules/.package-lock.json (from its node-cache layout).
+	# This project uses a regular npm-installed node_modules/, so provide the expected lockfile copy.
+	cp $(NODE_MODULES_TEST) node_modules/.package-lock.json
 	tools/node-modules runtime-tar $(NODE_CACHE)
 
 node-cache: $(NODE_CACHE)

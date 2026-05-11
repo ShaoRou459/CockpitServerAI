@@ -1,17 +1,17 @@
-Name: cockpit-starter-kit
+Name: cockpit-ai-agent
 Version: %{VERSION}
 Release: 1%{?dist}
-Summary: Cockpit Starter Kit Example Module
-License: LGPL-2.1-or-later
+Summary: AI-powered terminal assistant for Cockpit
+License: LGPL-2.1-only
 
-# distributions which ship nodejs-esbuild can rebuild the bundle during package build
+# Distributions which ship nodejs-esbuild can rebuild the bundle during package build
 %if 0%{?fedora} >= 42
 %define rebuild_bundle 1
 %endif
 
-Source0: https://github.com/cockpit-project/starter-kit/releases/download/%{version}/%{name}-%{version}.tar.xz
+Source0: %{name}-%{version}.tar.xz
 %if %{defined rebuild_bundle}
-Source1: https://github.com/cockpit-project/starter-kit/releases/download/%{version}/%{name}-node-%{version}.tar.xz
+Source1: %{name}-node-%{version}.tar.xz
 %endif
 
 BuildArch: noarch
@@ -42,7 +42,7 @@ Requires: cockpit-bridge
 %{NPM_PROVIDES}
 
 %description
-Cockpit Starter Kit Example Module
+An AI-powered terminal assistant plugin for Cockpit.
 
 %prep
 %autosetup -n %{name}

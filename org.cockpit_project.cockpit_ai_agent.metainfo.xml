@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="addon">
+  <id>org.cockpit_project.cockpit_ai_agent</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <name>Cockpit AI Agent</name>
+  <summary>AI-powered terminal assistant for Cockpit</summary>
+  <description>
+    <p>
+      An AI-powered terminal assistant plugin for Cockpit.
+    </p>
+  </description>
+  <extends>org.cockpit_project.cockpit</extends>
+  <launchable type="cockpit-manifest">cockpit-ai-agent</launchable>
+  <url type="homepage">https://github.com/ShaoRou459/CockpitServerAI</url>
+  <url type="bugtracker">https://github.com/ShaoRou459/CockpitServerAI/issues</url>
+</component>

@@ -1,9 +1,9 @@
-pkgname=cockpit-starter-kit
+pkgname=cockpit-ai-agent
 pkgver=VERSION
 pkgrel=1
-pkgdesc='Cockpit Starter Kit Example Module'
+pkgdesc='AI-powered terminal assistant for Cockpit'
 arch=('x86_64')
-url='https://github.com/cockpit-project/starter-kit'
+url='https://github.com/ShaoRou459/CockpitServerAI'
 license=(LGPL)
 source=("SOURCE")
 sha256sums=('SKIP')
