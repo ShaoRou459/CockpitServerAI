@@ -229,7 +229,7 @@ export class AgentController {
                 // Format results and send back to AI for continuation
                 const resultsMessage = this.formatResultsForAI(results);
                 this.conversationHistory.push({
-                    role: 'user',
+                    role: 'system',
                     content: resultsMessage
                 });
 
@@ -578,13 +578,13 @@ ${output}
 ${result.stderr ? `Errors:\n${result.stderr}` : ''}`;
         });
 
-        return `Here are the results of the commands I executed:
+        return `System: Here are the results of the actions you requested:
 
 ${parts.join('\n\n---\n\n')}
 
-Based on these results, decide the next steps.
+Based on these results, decide on the next steps.
 
-IMPORTANT: If you have a plan to execute commands, DO NOT just state the plan in text. You MUST output the actual commands as a JSON array inside a \`\`\`json block at the end of your response so they can be executed immediately. Do not wait for user confirmation unless you specifically use the 'ask_user' action type. If no more commands are needed, you MUST output a JSON block with the 'done' action type.`;
+IMPORTANT: If you need to execute more commands, you MUST output the actual commands as a JSON array inside a \`\`\`json block at the end of your response. If you have finished the task, you MUST output the JSON block with the 'done' action type.`;
     }
 
     private buildSystemPrompt(context: SystemContext): string {
