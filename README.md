@@ -13,12 +13,12 @@
 
 ## Features
 
-- 💻 **Interactive Browser Terminal** - Every Agent executed command is visible in a real-time terminal. You can watch, interact, or take over instantly (e.g., entering sudo passwords or stopping commands) to ensure you remain in control.
-- 🤖 **BYOK AI Support** - Choose between top-tier models from OpenAI, Google Gemini, or compatible providers to suit your specific administration needs and budget.
-- ⚡ **Autonomous Agentic Control** - Let the Agent handle complex workflows by executing sequences of commands, analyzing outputs, and iterating until your goal is seamlessly achieved.
-- 🛡️ **Intelligent Safety Controls** - Execute commands with confidence using customizable risk-based safety modes that prevent accidental or malicious system changes.
-- 🔒 **Automatic Secret Protection** - Keep your sensitive data secure with automatic, on-the-fly detection and redaction of passwords, API keys, and private tokens.
-- 🛠️ **Utility Toolbar** - Access history, debug logs, and toggle light/dark mode instantly from the top-right toolbar.
+- **Interactive Browser Terminal** - Every Agent executed command is visible in a real-time terminal. You can watch, interact, or take over instantly (e.g., entering sudo passwords or stopping commands) to ensure you remain in control.
+- **BYOK AI Support** - Choose between top-tier models from OpenAI, Google Gemini, or compatible providers to suit your specific administration needs and budget.
+- **Autonomous Agentic Control** - Let the Agent handle complex workflows by executing sequences of commands, analyzing outputs, and iterating until your goal is seamlessly achieved.
+- **Intelligent Safety Controls** - Execute commands with confidence using customizable risk-based safety modes that prevent accidental or malicious system changes.
+- **Automatic Secret Protection** - Keep your sensitive data secure with automatic, on-the-fly detection and redaction of passwords, API keys, and private tokens.
+- **Utility Toolbar** - Access history, debug logs, and toggle light/dark mode instantly from the top-right toolbar.
   
 
 ## Screenshots & Demo
@@ -26,12 +26,14 @@
 ### 1. Dashboard & Quick Actions
 The agent landing screen provides interactive shortcuts to get started instantly with standard server operations.
 
-<img src="assets/homescreen.png" alt="Dashboard UI" width="70%">
+<img alt="Dashboard UI" width="70%" src="https://github.com/user-attachments/assets/df33923f-5a84-44a5-8d3e-8b1492586e8e" />
+
 
 ### 2. Autonomous Command Execution
 A real-time, side-by-side view showing the Agent's thought process and actions, while syncing live outputs with a fully interactive terminal.
 
-<img width="70%" alt="image" src="https://github.com/user-attachments/assets/c3d63ac2-7e39-4b05-a9dd-65096bdc17ae" />
+<img width="70%" alt="task-ui" src="https://github.com/user-attachments/assets/ba8c6876-e0e4-4715-8bba-bb5b003e828c" />
+
 
 ### 3. Demo
 <a href="https://www.youtube.com/watch?v=t03g_AALki0" target="_blank">
@@ -40,7 +42,7 @@ A real-time, side-by-side view showing the Agent's thought process and actions, 
 
 ## Installation
 
-### ⚡ Quick Automatic Installation
+### Quick Automatic Installation
 
 No Node.js, npm, or compilation is required! Install the pre-compiled plugin directly onto your server with a single command. The installer automatically detects your privileges and targets the appropriate directory:
 
@@ -60,15 +62,15 @@ No Node.js, npm, or compilation is required! Install the pre-compiled plugin dir
 
 Since this tool has direct access to your server, we've built in multiple layers of security and privacy protections:
 
-### 🛡️ Local & Private AI Options
+### Local & Private AI Options
 The entire system is BYOK, including support for local AI models (via Ollama's Openai format endpoint, etc.) ensuring that your server's data is secure.
 
-### 🔒 Automatic Secret Redaction
+### Automatic Secret Redaction
 Passwords, API keys, and tokens in command outputs are automatically replaced with placeholders (e.g., `SECRET_1`) before reaching the Agent. It can use these placeholders to write commands, and the system securely swaps the real secrets back in just before execution, ensuring credentials never leave your server.
 
 ![Secret Redaction](assets/redact.png)
 
-### 🚦 Risk Levels & YOLO Mode
+### Risk Levels & YOLO Mode
 Every generated command is evaluated for risk before execution. Users can choose from multiple execution modes (Paranoid, Cautious, Moderate, YOLO, and Full YOLO) depending on their security preferences:
 
 <img src="assets/modechooser.png" alt="Mode Chooser" width="25%">
@@ -82,7 +84,7 @@ Every generated command is evaluated for risk before execution. Users can choose
 
 <img  alt="image" width="70%" src="assets/criticalprompt.png" />
 
-### 📝 Audit Logging
+### Audit Logging
 Every command executed by the Agent is logged, providing a clear paper trail of all system modifications.
 
 <img  alt="image" width="80%" src="https://github.com/user-attachments/assets/2d5dcb27-1e74-4e7c-9c41-d789ad955003" />
@@ -92,7 +94,7 @@ Every command executed by the Agent is logged, providing a clear paper trail of 
 
 1. Access Cockpit in your browser (usually `https://your-server:9090`)
 2. Navigate to **Agent** in the sidebar
-3. Click the ⚙️ settings button
+3. Click the settings button
 4. Configure your AI provider:
 
 | Provider | API Key Source | Notes |
