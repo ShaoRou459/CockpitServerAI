@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+
 import {
     Button,
     Flex,
@@ -24,7 +25,7 @@ import {
     BugIcon,
     TimesIcon,
     TrashIcon,
-    DownloadIcon,
+    CopyIcon,
     AngleRightIcon,
     AngleDownIcon,
     CompressIcon,
@@ -69,6 +70,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ isOpen, onClose }) => {
     const [isPaused, setIsPaused] = useState(false);
     const [levelSelectOpen, setLevelSelectOpen] = useState(false);
     const [categorySelectOpen, setCategorySelectOpen] = useState(false);
+    const [showCopyOverlay, setShowCopyOverlay] = useState(false);
 
     const logsEndRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -154,15 +156,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ isOpen, onClose }) => {
         setEntries([]);
     };
 
-    const handleExport = () => {
-        const json = debugLogger.exportLogs();
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `debug-log-${new Date().toISOString()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+    const handleCopy = () => {
+        setShowCopyOverlay(true);
     };
 
     if (!isOpen) return null;
@@ -216,11 +211,11 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ isOpen, onClose }) => {
                         <Button
                             variant="plain"
                             size="sm"
-                            onClick={handleExport}
-                            title="Export Logs"
+                            onClick={handleCopy}
+                            title="Copy Logs"
                             className="debug-panel__btn"
                         >
-                            <DownloadIcon />
+                            <CopyIcon />
                         </Button>
                     </FlexItem>
                     <FlexItem>
@@ -347,6 +342,30 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ isOpen, onClose }) => {
                         ))
                     )}
                     <div ref={logsEndRef} />
+                </div>
+            )}
+
+            {/* Copy overlay - shown when user clicks copy button */}
+            {showCopyOverlay && (
+                <div className="debug-panel__copy-overlay">
+                    <div className="debug-panel__copy-overlay-header">
+                        <span>Select All → Ctrl+C to copy</span>
+                        <Button
+                            variant="plain"
+                            size="sm"
+                            onClick={() => setShowCopyOverlay(false)}
+                            className="debug-panel__btn"
+                        >
+                            <TimesIcon />
+                        </Button>
+                    </div>
+                    <textarea
+                        className="debug-panel__copy-textarea"
+                        readOnly
+                        value={debugLogger.exportLogs()}
+                        onFocus={(e) => e.target.select()}
+                        autoFocus
+                    />
                 </div>
             )}
         </div>

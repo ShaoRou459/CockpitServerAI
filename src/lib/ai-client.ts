@@ -126,7 +126,7 @@ async function httpRequest(
             '-X', method,
             '-w', '\\n%{http_code}',  // Append status code
             ...headerArgs,
-            '-d', body,
+            '-d', '@-',     // Read body from STDIN to avoid OS command-line argument length limits (MAX_ARG_STRLEN)
             url
         ];
 
@@ -134,6 +134,11 @@ async function httpRequest(
             superuser: 'try',
             err: 'message'
         });
+
+        // Pass the request body via stdin
+        if (body) {
+            proc.input(body);
+        }
 
         let output = '';
         let aborted = false;
@@ -358,6 +363,7 @@ export class AIClient {
         let streamedContent = '';
         let sseLineBuffer = '';
         let isReasoning = false;
+        let hadNativeReasoning = false;
 
         const response = await httpRequest(
             url,
@@ -402,6 +408,10 @@ export class AIClient {
                                 if (isReasoning) {
                                     isReasoning = false;
                                     streamedContent += '\n</think>\n\n';
+                                    // The model already sent reasoning via the native reasoning_content
+                                    // field. Flag this so we can strip any duplicate <think> tags the
+                                    // model may echo in the regular content field.
+                                    hadNativeReasoning = true;
                                 }
                                 streamedContent += deltaContent;
                                 onResponseStream?.(streamedContent);
@@ -433,6 +443,21 @@ export class AIClient {
         let content: string | undefined;
         if (stream) {
             content = streamedContent;
+
+            // If the model sent reasoning via the native reasoning_content field AND
+            // also echoed <think> tags in the content field, strip the duplicates.
+            // This prevents two "Thought Process" sections from appearing in the UI.
+            if (content && hadNativeReasoning) {
+                content = content.replace(
+                    /(<\/think>\s*\n*)\s*<think>[\s\S]*?<\/think>/gi,
+                    '$1'
+                );
+                // Also handle unclosed trailing <think> (streaming edge case)
+                content = content.replace(
+                    /(<\/think>\s*\n*)\s*<think>[\s\S]*$/gi,
+                    '$1'
+                );
+            }
             if (!content) {
                 // Fallback for OpenAI-compatible endpoints that ignore `stream: true`
                 try {
@@ -441,7 +466,8 @@ export class AIClient {
                     if (msg) {
                         content = msg.content || '';
                         if (msg.reasoning_content) {
-                            content = `<think>\n${msg.reasoning_content}\n</think>\n\n${content}`;
+                            const cleanedContent = (msg.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                            content = `<think>\n${msg.reasoning_content}\n</think>\n\n${cleanedContent}`;
                         }
                     }
                 } catch {
@@ -454,7 +480,8 @@ export class AIClient {
             if (msg) {
                 content = msg.content || '';
                 if (msg.reasoning_content) {
-                    content = `<think>\n${msg.reasoning_content}\n</think>\n\n${content}`;
+                    const cleanedContent = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                    content = `<think>\n${msg.reasoning_content}\n</think>\n\n${cleanedContent}`;
                 }
             }
         }

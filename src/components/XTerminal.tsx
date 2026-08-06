@@ -242,7 +242,7 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({ onReady 
 
         // Handle terminal resize - use Cockpit control API to update PTY window size silently
         terminal.onResize(({ cols, rows }) => {
-            if (channelRef.current) {
+            if (channelRef.current && typeof channelRef.current.control === 'function') {
                 // Send window resize control command (pass various synonyms as Cockpit API surface may expect lines/columns or rows/cols depending on the bridge version)
                 channelRef.current.control({ command: 'window', visible: true, rows: rows, cols: cols, lines: rows, columns: cols });
             }

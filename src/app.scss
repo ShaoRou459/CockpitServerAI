@@ -3348,6 +3348,59 @@ body.resizing * {
     color: #f54f47 !important;
 }
 
+.debug-panel__btn--success {
+    color: #92d400 !important;
+}
+
+.debug-panel__export-path {
+    font-size: 10px;
+    color: #92d400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.debug-panel__copy-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    background-color: #1b1d21;
+    border-radius: 8px;
+}
+
+.debug-panel__copy-overlay-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: #212427;
+    border-bottom: 1px solid #3d3d3d;
+    color: #92d400;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.debug-panel__copy-textarea {
+    flex: 1;
+    width: 100%;
+    padding: 12px;
+    margin: 0;
+    border: none;
+    resize: none;
+    background-color: #151515;
+    color: #d0d0d0;
+    font-family: 'RedHatMono', 'Liberation Mono', monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    outline: none;
+    box-sizing: border-box;
+}
+
 .debug-panel__filters {
     padding: 8px 12px;
     background-color: #212427;

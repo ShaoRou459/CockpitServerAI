@@ -46,8 +46,9 @@ class DebugLogger {
      * Enable or disable debug logging
      */
     setEnabled(enabled: boolean): void {
+        const changed = this.enabled !== enabled;
         this.enabled = enabled;
-        if (enabled) {
+        if (enabled && changed) {
             this.log('info', 'system', 'Debug Mode', 'Debug logging enabled');
         }
     }
@@ -116,23 +117,54 @@ class DebugLogger {
     }
 
     /**
-     * Log an API request
+     * Log an API request with summarized prompt content to keep logs concise
      */
     logRequest(provider: string, url: string, body: any): void {
+        const sanitizedBody = this.sanitizeForLog(body);
+
+        // Summarize messages array to hide massive system prompt boilerplate
+        if (sanitizedBody && Array.isArray(sanitizedBody.messages)) {
+            sanitizedBody.messages = sanitizedBody.messages.map((msg: any) => {
+                if (msg.role === 'system') {
+                    const charCount = typeof msg.content === 'string' ? msg.content.length : 0;
+                    return {
+                        role: 'system',
+                        content: `[System Prompt: ${Math.round(charCount / 1024 * 10) / 10} KB]`
+                    };
+                }
+                if (typeof msg.content === 'string' && msg.content.length > 300) {
+                    return {
+                        ...msg,
+                        content: msg.content.substring(0, 300) + '... (truncated)'
+                    };
+                }
+                return msg;
+            });
+        }
+
         this.log('info', 'api-request', `API Request → ${provider}`, url, {
             url,
-            body: this.sanitizeForLog(body)
+            body: sanitizedBody
         });
     }
 
     /**
-     * Log an API response
+     * Log an API response with clean, truncated body preview
      */
     logResponse(provider: string, status: number, body: string, duration: number): void {
         const level: LogLevel = status >= 400 ? 'error' : 'info';
-        this.log(level, 'api-response', `API Response ← ${provider}`, `Status: ${status}`, {
+        const isSSE = body.trimStart().startsWith('data:');
+        
+        let bodyPreview: any;
+        if (isSSE) {
+            bodyPreview = `[Streaming Response: ${duration}ms, ${(body.length / 1024).toFixed(1)} KB]`;
+        } else {
+            bodyPreview = this.truncateString(body, 800);
+        }
+
+        this.log(level, 'api-response', `API Response ← ${provider}`, `Status: ${status} (${duration}ms)`, {
             status,
-            body: this.truncateString(body, 50000),
+            body: bodyPreview,
             duration: `${duration}ms`
         }, duration);
     }
@@ -145,10 +177,14 @@ class DebugLogger {
             success ? 'info' : 'warn',
             'ai-parse',
             success ? 'AI Response Parsed' : 'AI Parse Failed (Fallback)',
-            success ? 'Successfully parsed JSON response' : 'Failed to parse as JSON, using raw text',
+            success ? `Parsed ${parsed?.actions?.length || 0} action(s)` : 'Failed to parse as JSON, using raw text',
             {
-                raw: this.truncateString(rawContent, 50000),
-                parsed
+                raw: this.truncateString(rawContent, 800),
+                parsed: {
+                    thought: parsed?.thought ? this.truncateString(parsed.thought, 200) : undefined,
+                    actionsCount: parsed?.actions?.length || 0,
+                    actions: parsed?.actions
+                }
             }
         );
     }
@@ -170,7 +206,12 @@ class DebugLogger {
             'action',
             `Action ${phase.charAt(0).toUpperCase() + phase.slice(1)}`,
             action.description || action.command || action.type,
-            { action, result }
+            {
+                type: action.type,
+                command: action.command || action.path || action.service,
+                risk: action.risk_level,
+                result: result ? { success: result.success, exitCode: result.exitCode } : undefined
+            }
         );
     }
 
